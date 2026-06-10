@@ -1,8 +1,23 @@
 import { NestFactory } from '@nestjs/core';
-import { OrderServiceModule } from './order-service.module';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(OrderServiceModule);
-  await app.listen(process.env.port ?? 3000);
+  const app: INestApplication<any> = await NestFactory.create(AppModule);
+
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+
+  const config = new DocumentBuilder()
+    .setTitle('Order Service')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, config));
+
+  const port = process.env.PORT ?? 3004;
+  await app.listen(port);
+  console.log(`User service running on http://localhost:${port}`);
+  console.log(`Swagger docs: http://localhost:${port}/docs`);
 }
 bootstrap();
