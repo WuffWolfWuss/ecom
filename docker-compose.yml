@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+  # ─── PostgreSQL ───────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecom_postgres
+    environment:
+      POSTGRES_USER: ecom_user
+      POSTGRES_PASSWORD: ecom_pass
+      POSTGRES_DB: ecom_users # DB mặc định, các service tạo thêm DB riêng
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ecom_network
+
+  # ─── MongoDB ──────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: ecom_mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ecom_user
+      MONGO_INITDB_ROOT_PASSWORD: ecom_pass
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - ecom_network
+
+  # ─── Redis ────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: ecom_redis
+    command: redis-server --requirepass ecom_pass
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - ecom_network
+
+  # ─── Kafka ────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.8.0
+    container_name: ecom_kafka
+    ports:
+      - '29092:29092'
+      - '9093:9093'
+    environment:
+      # KRaft mode — không cần ZooKeeper
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+
+      # Listeners 2 listener — 1 cho internal (Docker network), 1 cho external (host machine)
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # Performance & config
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+
+      # KRaft cluster ID — generate 1 lần rồi giữ nguyên
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - ecom_network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: ecom_kafka_ui
+    depends_on:
+      - kafka
+    ports:
+      - '8080:8080'
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    networks:
+      - ecom_network
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: ecom_nats
+    ports:
+      - '4222:4222' # client
+      - '8222:8222' # monitoring UI
+    networks:
+      - ecom_network
+
+  elasticsearch:
+    image: elasticsearch:9.0.1
+    container_name: ecom_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - '9200:9200'
+    volumes:
+      - elastic_data:/usr/share/elasticsearch/data
+    networks:
+      - ecom_network
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
+  kafka_data:
+  elastic_data:
+
+networks:
+  ecom_network:
+    driver: bridge

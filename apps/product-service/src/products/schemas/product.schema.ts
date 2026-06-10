@@ -1,0 +1,44 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { Document, Types } from 'mongoose';
+
+export type ProductDocument = Product & Document;
+
+@Schema({ timestamps: true, collection: 'products' })
+export class Product {
+  @Prop({ required: true, trim: true })
+  name: string;
+
+  @Prop({ trim: true })
+  description: string;
+
+  @Prop({ required: true, min: 0 })
+  price: number;
+
+  @Prop({ min: 0, default: 0 })
+  discountPrice: number;
+
+  @Prop({ type: Types.ObjectId, ref: 'Category', required: true })
+  categoryId: Types.ObjectId;
+
+  @Prop([String])
+  images: string[];
+
+  // Flexible attributes cho từng category
+  // VD: { color: 'red', size: 'XL' } hoặc { storage: '256GB', ram: '8GB' }
+  @Prop({ type: Object, default: {} })
+  attributes: Record<string, any>;
+
+  @Prop({ default: true })
+  isActive: boolean;
+
+  @Prop({ default: 0 })
+  soldCount: number;
+}
+
+export const ProductSchema = SchemaFactory.createForClass(Product);
+
+// Text index cho search cơ bản (fallback khi không có Elasticsearch)
+ProductSchema.index({ name: 'text', description: 'text' });
+ProductSchema.index({ categoryId: 1 });
+ProductSchema.index({ price: 1 });
+ProductSchema.index({ isActive: 1 });
