@@ -1,171 +1,107 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Order } from './entities/order.entity';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { BrokerService } from '@app/broker';
 import { EOrderStatus } from './enums/order-status.enum';
-import { BrokerEvent, BrokerMessage } from '@app/broker';
+import { OrdersRepository } from './repositories/orders.repository';
+import { PlaceOrderSaga } from './saga/place-order.saga';
+import { QueryOrderDto } from './dto/query-order.dto';
 
 @Injectable()
 export class OrderService {
   private readonly logger = new Logger(OrderService.name);
 
   constructor(
-    @InjectRepository(Order)
-    private readonly orderRepository: Repository<Order>,
-    private readonly brokerService: BrokerService,
+    private readonly repo: OrdersRepository,
+    private readonly saga: PlaceOrderSaga,
+    private readonly broker: BrokerService,
   ) {}
 
-  async createOrder(createOrderDto: CreateOrderDto): Promise<Order> {
-    const order = this.orderRepository.create({
-      userId: createOrderDto.userId,
-      items: createOrderDto.items,
-      totalAmount: createOrderDto.totalAmount,
-      status: EOrderStatus.PENDING,
+  async placeOrder(dto: CreateOrderDto, userId?: string) {
+    // Tạo order với status PENDING trước để có orderId cho saga
+    const order = await this.repo.create({
+      userId: dto.userId,
+      total: 0, // chưa biết giá, saga sẽ validate
+      items: dto.items.map((i) => ({
+        productId: i.productId,
+        productName: '', // saga sẽ điền vào
+        price: 0,
+        qty: i.qty,
+        subtotal: 0,
+      })),
     });
+    this.repo;
 
-    await this.orderRepository.save(order);
-    this.logger.log(`Order ${order.id} created with status PENDING`);
+    try {
+      const { validatedItems, total } = await this.saga.execute({
+        orderId: order.id,
+        userId: dto.userId,
+        items: dto.items,
+      });
 
-    // Start the Saga Orchestration (async to not block API response)
-    this.runSagaOrchestrator(order.id).catch((err) =>
-      this.logger.error(
-        `Initial saga trigger failed for Order ${order.id}: ${err.message}`,
-      ),
-    );
+      // Saga thành công — update order với thông tin thật
+      await this.repo.updateStatus(order.id, EOrderStatus.PAYMENT_COMPLETED);
 
+      // Update items với giá thật từ product service
+      const confirmed = await this.repo.findById(order.id);
+
+      // Publish event để notification service gửi email xác nhận
+      await this.broker.publish({
+        topic: 'order.confirmed',
+        payload: { orderId: order.id, userId, total, items: validatedItems },
+      });
+
+      return confirmed;
+    } catch (error) {
+      // Saga thất bại — rollback đã được xử lý bên trong saga
+      await this.repo.updateStatus(
+        order.id,
+        EOrderStatus.FAILED,
+        error.message,
+      );
+      throw error;
+    }
+  }
+
+  async findMyOrders(userId: string, query: QueryOrderDto) {
+    return this.repo.findByUserId(userId, query);
+  }
+
+  async findOne(id: string, userId?: string) {
+    const order = await this.repo.findById(id);
+    if (!order) throw new NotFoundException('Order not found');
+    if (userId && order.userId !== userId)
+      throw new ForbiddenException('Access denied');
     return order;
   }
 
-  private async runSagaOrchestrator(orderId: string) {
-    const order = await this.orderRepository.findOneBy({ id: orderId });
-    if (!order) return;
-
-    try {
-      this.logger.log(`Starting Saga for Order ${orderId}: Reserving Stock...`);
-      await this.orderRepository.update(orderId, {
-        status: EOrderStatus.STOCK_RESERVING,
-      });
-
-      // Step 1: Reserve Stock via NATS (Request-Reply)
-      const reservationResponse = await this.brokerService.send<{
-        reservationId: string;
-      }>({
-        topic: 'inventory.reserve',
-        payload: {
-          orderId: order.id,
-          items: order.items,
-        },
-      });
-
-      if (reservationResponse && reservationResponse.reservationId) {
-        this.logger.log(
-          `Stock reserved for Order ${orderId}. Reservation ID: ${reservationResponse.reservationId}`,
-        );
-
-        // Step 2: Transition to Payment Processing
-        await this.orderRepository.update(orderId, {
-          status: EOrderStatus.PAYMENT_PROCESSING,
-        });
-
-        // Trigger payment service
-        await this.brokerService.publish({
-          topic: 'payment.process',
-          payload: { orderId: order.id, amount: order.totalAmount },
-        });
-      } else {
-        throw new Error('Failed to reserve stock: No reservation ID returned');
-      }
-    } catch (error: any) {
-      this.logger.error(`Saga failed for Order ${orderId}: ${error.message}`);
-      await this.handleSagaFailure(orderId, error);
-    }
-  }
-
-  @BrokerEvent('payment.succeeded')
-  async handlePaymentSuccess(payload: { orderId: string }) {
-    const { orderId } = payload;
-    this.logger.log(`Received payment.succeeded for Order ${orderId}`);
-
-    try {
-      const order = await this.orderRepository.findOneBy({ id: orderId });
-      if (!order || order.status !== EOrderStatus.PAYMENT_PROCESSING) return;
-
-      // Step 3: Confirm Reservation in Inventory via NATS
-      await this.brokerService.send({
-        topic: 'inventory.confirm',
-        payload: { orderId: order.id },
-      });
-
-      await this.orderRepository.update(orderId, {
-        status: EOrderStatus.COMPLETED,
-      });
-      this.logger.log(`Order ${orderId} completed successfully.`);
-    } catch (error: any) {
-      this.logger.error(
-        `Error during payment success handling for Order ${orderId}: ${error.message}`,
-      );
-      await this.handleSagaFailure(orderId, error);
-    }
-  }
-
-  @BrokerEvent('payment.failed')
-  async handlePaymentFailure(payload: { orderId: string; reason?: string }) {
-    const { orderId, reason } = payload;
-    this.logger.warn(
-      `Received payment.failed for Order ${orderId}. Reason: ${reason}`,
-    );
-
-    try {
-      await this.handleSagaFailure(
-        orderId,
-        new Error(reason || 'Payment failed'),
-      );
-    } catch (error: any) {
-      this.logger.error(
-        `Error during payment failure handling for Order ${orderId}: ${error.message}`,
-      );
-    }
-  }
-
-  private async handleSagaFailure(orderId: string, error: any) {
-    const order = await this.orderRepository.findOneBy({ id: orderId });
-    if (!order) return;
-
-    if (
-      order.status === EOrderStatus.PAYMENT_COMPLETED ||
-      order.status === EOrderStatus.STOCK_RESERVING ||
-      order.status === EOrderStatus.PAYMENT_PROCESSING
-    ) {
-      this.logger.warn(
-        `Compensating transaction: Releasing stock for Order ${orderId}`,
-      );
-      await this.brokerService.send({
-        topic: 'inventory.release',
-        payload: { orderId: order.id },
-      });
+  async cancelOrder(id: string, userId: string) {
+    const order = await this.repo.findById(id);
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.userId !== userId) throw new ForbiddenException('Access denied');
+    if (order.status !== EOrderStatus.PENDING) {
+      throw new ForbiddenException('Only pending orders can be cancelled');
     }
 
-    // If payment was completed, we might also need to refund (if that state exists)
-    if (order.status === EOrderStatus.PAYMENT_COMPLETED) {
-      this.logger.warn(
-        `Compensating transaction: Refunding payment for Order ${orderId}`,
-      );
-      await this.brokerService.send({
-        topic: 'payment.refund',
-        payload: { orderId: order.id, paymentId: order.paymentId },
-      });
-    }
+    await this.repo.updateStatus(id, EOrderStatus.CANCELLED);
 
-    await this.orderRepository.update(orderId, { status: EOrderStatus.FAILED });
-
-    await this.brokerService.publish({
-      topic: 'order.failed',
+    // Release stock
+    await this.broker.send({
+      topic: 'inventory.release',
       payload: {
-        orderId: order.id,
-        reason: error?.message || 'Unknown failure',
+        items: order.items.map((i) => ({ productId: i.productId, qty: i.qty })),
       },
     });
+
+    await this.broker.publish({
+      topic: 'order.cancelled',
+      payload: { orderId: id, userId },
+    });
+
+    return { success: true };
   }
 }

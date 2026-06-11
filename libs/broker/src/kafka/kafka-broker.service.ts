@@ -44,6 +44,14 @@ export class KafkaBrokerService
     this.consumer = this.kafka.consumer({
       groupId: config.get('KAFKA_GROUP_ID', 'ecom-group'),
       allowAutoTopicCreation: true,
+      // Tăng session timeout — Kafka broker chờ lâu hơn trước khi kick consumer
+      sessionTimeout: 30000,
+
+      // Heartbeat phải nhỏ hơn sessionTimeout / 3
+      heartbeatInterval: 3000,
+
+      // Thời gian tối đa giữa 2 lần poll
+      maxWaitTimeInMs: 5000,
       retry: { initialRetryTime: 300, maxRetryTime: 10000, retries: 3 },
     });
   }
@@ -139,6 +147,11 @@ export class KafkaBrokerService
     if (this.consumerRunning) return;
     console.log('startConsumer - Kafka consumer RUNNING...');
     await this.consumer.run({
+      // Commit offset sau mỗi message thay vì batch
+      // Tránh reprocess message khi rebalance
+      autoCommitInterval: 5000,
+      autoCommitThreshold: 1,
+
       eachMessage: async (payload) => {
         for (const [pattern, handler] of this.handlers) {
           const match =

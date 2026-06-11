@@ -3,11 +3,13 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InventoryRepository } from './repositories/inventory.repository';
 
 @Injectable()
 export class InventoryService {
+  private readonly logger = new Logger(InventoryService.name);
   constructor(private readonly repo: InventoryRepository) {}
 
   async getStock(productId: string) {
@@ -45,6 +47,9 @@ export class InventoryService {
   }
 
   async confirmReservation(items: { productId: string; qty: number }[]) {
+    this.logger.log(
+      `payment.confirmed received. Data: ${JSON.stringify(items)}`,
+    );
     await this.repo.confirmReservation(items);
     return { success: true };
   }

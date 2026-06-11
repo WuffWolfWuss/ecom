@@ -3,15 +3,14 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BrokerModule } from '@app/broker';
-import { Order } from './orders/entities/order.entity';
-import { OrderItem } from './orders/entities/order-item.entity';
-import { OrderModule } from './orders/order.module';
+import { Payment } from './payments/entities/payment.entity';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: './apps/order-service/.env',
+      envFilePath: './apps/payment-service/.env',
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -22,12 +21,12 @@ import { OrderModule } from './orders/order.module';
         username: config.get('DB_USER', 'ecom_user'),
         password: config.get('DB_PASS', 'ecom_pass'),
         database: config.get('DB_NAME'),
-        entities: [Order, OrderItem],
+        entities: [Payment],
         synchronize: true,
       }),
     }),
     BrokerModule,
-    OrderModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}

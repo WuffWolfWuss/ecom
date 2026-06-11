@@ -4,11 +4,14 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 import { EOrderStatus } from '../enums/order-status.enum';
+import { OrderItem } from './order-item.entity';
+import { IOrder } from '../interfaces/order.interface';
 
 @Entity('orders')
-export class Order {
+export class Order implements IOrder {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -18,8 +21,11 @@ export class Order {
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   totalAmount: number;
 
-  @Column({ type: 'jsonb' })
-  items: any[]; // Detailed items for payment/inventory services
+  @OneToMany(() => OrderItem, (item) => item.order, {
+    cascade: true,
+    eager: true,
+  })
+  items: OrderItem[];
 
   @Column({
     type: 'enum',
@@ -30,6 +36,9 @@ export class Order {
 
   @Column({ nullable: true })
   paymentId: string;
+
+  @Column({ nullable: true })
+  failureReason: string;
 
   @CreateDateColumn()
   createdAt: Date;

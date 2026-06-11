@@ -15,10 +15,6 @@ export class OrderItemDto {
   @IsNumber()
   @Min(1)
   qty: number;
-
-  @IsNumber()
-  @Min(1)
-  price: number;
 }
 
 export class CreateOrderDto {
@@ -30,10 +26,5 @@ export class CreateOrderDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
-  items: { productId: string; quantity: number; price: number }[];
-
-  @ApiProperty()
-  @IsNumber()
-  @Min(1)
-  totalAmount: number;
+  items: OrderItemDto[];
 }
