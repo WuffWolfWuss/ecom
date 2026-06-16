@@ -6,6 +6,7 @@ import {
 } from './dto/create-category.dto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { QueryCategoryDto } from './dto/query-category.dto';
+import { Roles } from '@app/common/decorators/roles.decorator';
 
 @ApiTags('categories')
 @Controller('categories')
@@ -14,12 +15,14 @@ export class CategoriesController {
 
   @Post()
   @ApiBearerAuth()
+  @Roles('ADMIN')
   create(@Body() dto: CreateCategoryDto) {
     return this.categoriesService.create(dto);
   }
 
   @Get()
-  findMany(@Query() query: QueryCategoryDto) {
+  findMany(@Query() query: any) {
+    console.log(query);
     return this.categoriesService.findMany(query);
   }
 
@@ -30,6 +33,7 @@ export class CategoriesController {
 
   @Put(':id')
   @ApiBearerAuth()
+  @Roles('ADMIN')
   update(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
     return this.categoriesService.update(id, dto);
   }

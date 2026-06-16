@@ -28,8 +28,8 @@ export class KafkaBrokerService
     (payload: EachMessagePayload) => Promise<void>
   > = new Map();
   private initialized = false;
-  private initPromise: Promise<void> | null = null;
   private consumerRunning = false;
+  private pendingTopics: string[] = [];
 
   constructor(private readonly config: ConfigService) {
     this.kafka = new Kafka({
@@ -44,6 +44,17 @@ export class KafkaBrokerService
     this.consumer = this.kafka.consumer({
       groupId: config.get('KAFKA_GROUP_ID', 'ecom-group'),
       allowAutoTopicCreation: true,
+      // Tăng session timeout — Kafka broker chờ lâu hơn trước khi kick consumer
+      sessionTimeout: 30000,
+
+      // Heartbeat phải nhỏ hơn sessionTimeout / 3
+      heartbeatInterval: 3000,
+
+      // Thời gian tối đa giữa 2 lần poll
+      maxWaitTimeInMs: 5000,
+
+      // RoundRobin assign lại partition nhanh hơn
+      // partitionAssigners: [PartitionAssigners.roundRobin],
       retry: { initialRetryTime: 300, maxRetryTime: 10000, retries: 3 },
     });
   }
@@ -58,15 +69,10 @@ export class KafkaBrokerService
 
   private async initialize() {
     if (this.initialized) return;
-    if (this.initPromise) return this.initPromise;
 
-    this.initPromise = (async () => {
-      await this.producer.connect();
-      await this.consumer.connect();
-      this.initialized = true;
-    })();
-
-    return this.initPromise;
+    await this.producer.connect();
+    await this.consumer.connect();
+    this.initialized = true;
   }
 
   // Publish event (fire-and-forget)
@@ -86,7 +92,8 @@ export class KafkaBrokerService
       console.log('subscribe - Kafka create topic: ', topic);
       await this.createTopicIfNotExists(topic);
       this.handlers.set(topic, payload.handler);
-      await this.consumer.subscribe({ topics: [topic], fromBeginning: true });
+      this.pendingTopics.push(topic);
+      // await this.consumer.subscribe({ topics: [topic], fromBeginning: true });
     } catch (error: any) {
       throw error;
     }
@@ -96,17 +103,6 @@ export class KafkaBrokerService
     const subscriptions: KafkaSubscription[] =
       Reflect.getMetadata(KAFKA_HANDLER_METADATA_KEY, instance.constructor) ||
       [];
-
-    if (subscriptions.length === 0) return;
-
-    // Stop một lần trước khi subscribe hàng loạt
-    console.log('setupSubscriptions - Kafka consumer STOPING...');
-    if (this.consumerRunning) {
-      console.log('setupSubscriptions - Kafka consumer STOPING...');
-      await this.consumer.stop();
-      this.consumerRunning = false;
-      console.log('setupSubscriptions - Kafka consumer STOPED.');
-    }
 
     for (const { topic, handler } of subscriptions) {
       const method = instance[handler];
@@ -124,8 +120,6 @@ export class KafkaBrokerService
         },
       });
     }
-    // Start một lần sau khi subscribe hết
-    await this.startConsumer();
   }
 
   async disconnect() {
@@ -135,9 +129,14 @@ export class KafkaBrokerService
     this.consumerRunning = false;
   }
 
-  private async startConsumer() {
-    if (this.consumerRunning) return;
-    console.log('startConsumer - Kafka consumer RUNNING...');
+  async startConsumer() {
+    if (this.consumerRunning || this.pendingTopics.length === 0) return;
+
+    await this.consumer.subscribe({
+      topics: this.pendingTopics, // subscribe tất cả một lần
+      fromBeginning: false, // chỉ đọc event mới — xem lý do bên dưới
+    });
+
     await this.consumer.run({
       eachMessage: async (payload) => {
         for (const [pattern, handler] of this.handlers) {
@@ -145,6 +144,7 @@ export class KafkaBrokerService
             typeof pattern === 'string'
               ? pattern === payload.topic
               : pattern.test(payload.topic);
+
           if (match) {
             try {
               await handler(payload);
@@ -155,7 +155,9 @@ export class KafkaBrokerService
         }
       },
     });
+
     this.consumerRunning = true;
+    console.log(`[Kafka] consuming topics: ${this.pendingTopics.join(', ')}`);
   }
 
   private async createTopicIfNotExists(topic: string) {

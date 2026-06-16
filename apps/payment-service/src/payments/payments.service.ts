@@ -1,0 +1,115 @@
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
+import { PaymentsRepository } from './payments.repository';
+import { ChargeDto } from './dto/charge.dto';
+import { EPaymentStatus } from './constants/enum';
+import { BrokerService } from '@app/broker';
+
+@Injectable()
+export class PaymentsService {
+  constructor(
+    private readonly repo: PaymentsRepository,
+    private readonly broker: BrokerService,
+  ) {}
+
+  async charge(dto: ChargeDto) {
+    // Idempotency check — tránh charge 2 lần cùng 1 order
+    console.log(`[PAY] charging order...`);
+    const existing = await this.repo.findByOrderId(dto.orderId);
+    if (existing) {
+      if (existing.status === EPaymentStatus.SUCCEEDED)
+        return { success: true, transactionId: existing.transactionId };
+      throw new BadRequestException('Payment already attempted for this order');
+    }
+
+    const payment = await this.repo.create(dto);
+
+    try {
+      // Simulate payment gateway call
+      // Production: thay bằng Stripe SDK
+      const transactionId = await this.processPayment(
+        payment.amount,
+        payment.method,
+      );
+
+      await this.repo.updateStatus(payment.orderId, EPaymentStatus.SUCCEEDED, {
+        transactionId,
+      });
+
+      // Publish event để inventory confirm reservation
+      await this.broker.publish({
+        topic: 'payment.succeeded',
+        payload: {
+          orderId: payment.orderId,
+          userId: payment.userId,
+          transactionId,
+        },
+      });
+
+      return { success: true, transactionId };
+    } catch (error) {
+      await this.repo.updateStatus(payment.orderId, EPaymentStatus.FAILED, {
+        failureReason: error.message,
+      });
+
+      return { success: false, reason: error.message };
+    }
+  }
+
+  async refund(orderId: string) {
+    const payment = await this.repo.findByOrderId(orderId);
+    if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.status !== EPaymentStatus.SUCCEEDED) {
+      throw new BadRequestException('Only succeeded payments can be refunded');
+    }
+
+    try {
+      // Production: gọi Stripe refund API
+      await this.processRefund(payment.transactionId);
+
+      await this.repo.updateStatus(orderId, EPaymentStatus.REFUNDED);
+
+      await this.broker.publish({
+        topic: 'payment.refunded',
+        payload: { orderId, userId: payment.userId },
+      });
+
+      return { success: true };
+    } catch (error) {
+      throw new BadRequestException(`Refund failed: ${error.message}`);
+    }
+  }
+
+  async getPaymentByOrder(orderId: string) {
+    const payment = await this.repo.findByOrderId(orderId);
+    if (!payment) throw new NotFoundException('Payment not found');
+    return payment;
+  }
+
+  async getMyPayments(userId: string) {
+    return this.repo.findByUserId(userId);
+  }
+
+  // Simulate gateway — thay bằng Stripe trong production
+  private async processPayment(
+    amount: number,
+    method: string,
+  ): Promise<string> {
+    await new Promise((r) => setTimeout(r, 300)); // giả lập latency
+
+    // Giả lập 50% fail rate để test saga rollback
+    const succeeded_chance = Math.random();
+    console.log(`[PAY] sucess chance: ${succeeded_chance}`);
+    if (succeeded_chance < 0.5) throw new Error('Payment gateway error');
+
+    return `txn_${Date.now()}`;
+  }
+
+  private async processRefund(transactionId: string): Promise<void> {
+    await new Promise((r) => setTimeout(r, 200));
+    // Stripe: await stripe.refunds.create({ charge: transactionId });
+  }
+}

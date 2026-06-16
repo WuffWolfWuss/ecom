@@ -15,7 +15,9 @@ export class ProductEventHandler implements OnModuleInit {
 
   // Order service gọi qua NATS để validate + lấy giá trước khi checkout
   @BrokerMessage('product.validate')
-  async onValidateProducts(data: { items: { productId: string; qty: number }[] }) {
+  async onValidateProducts(data: {
+    items: { productId: string; qty: number }[];
+  }) {
     return this.productsService.validateProducts(data.items);
   }
 }

@@ -3,12 +3,18 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InventoryRepository } from './repositories/inventory.repository';
+import { OrderClient } from './handlers/order.client';
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly repo: InventoryRepository) {}
+  private readonly logger = new Logger(InventoryService.name);
+  constructor(
+    private readonly repo: InventoryRepository,
+    private readonly orderClient: OrderClient,
+  ) {}
 
   async getStock(productId: string) {
     const inv = await this.repo.findByProductId(productId);
@@ -44,7 +50,9 @@ export class InventoryService {
     }
   }
 
-  async confirmReservation(items: { productId: string; qty: number }[]) {
+  async confirmReservation(orderId: string) {
+    this.logger.log(`confirmReservation Order Id: ${orderId}`);
+    const items = await this.orderClient.getOrderItems(orderId);
     await this.repo.confirmReservation(items);
     return { success: true };
   }

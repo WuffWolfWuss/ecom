@@ -1,10 +1,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { IProduct } from '../interfaces/product.interface';
 
 export type ProductDocument = Product & Document;
 
 @Schema({ timestamps: true, collection: 'products' })
-export class Product {
+export class Product implements IProduct {
   @Prop({ required: true, trim: true })
   name: string;
 
@@ -33,6 +34,9 @@ export class Product {
 
   @Prop({ default: 0 })
   soldCount: number;
+
+  @Prop(String)
+  createdBy: string;
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

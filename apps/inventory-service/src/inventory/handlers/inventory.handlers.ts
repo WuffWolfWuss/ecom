@@ -39,10 +39,8 @@ export class InventoryEventHandler implements OnModuleInit {
   // Kafka — Payment service publish sau khi charge thành công
   // Confirm reserve → trừ stock thật
   @BrokerEvent('payment.succeeded')
-  async onPaymentSucceeded(payload: {
-    orderId: string;
-    items: { productId: string; qty: number }[];
-  }) {
-    await this.inventoryService.confirmReservation(payload.items);
+  async onPaymentSucceeded(payload: { orderId: string }) {
+    console.log(`payment.succeeded received. Order Id: ${payload.orderId}`);
+    await this.inventoryService.confirmReservation(payload.orderId);
   }
 }
