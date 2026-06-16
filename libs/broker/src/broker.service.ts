@@ -27,6 +27,9 @@ export class BrokerService {
       await this.kafka.setupSubscriptions(instance);
       await this.nats.setupSubscriptions(instance);
     }
+
+    // Gọi sau khi tất cả handlers đã đăng ký xong
+    await this.kafka.startConsumer();
   }
 
   async shutdown() {

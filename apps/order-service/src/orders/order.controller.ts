@@ -12,6 +12,8 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { QueryOrderDto } from './dto/query-order.dto';
 import { OrderService } from './order.service';
+import { CurrentUser } from '@app/common';
+import { Roles } from '@app/common/decorators/roles.decorator';
 
 @ApiTags('orders')
 @ApiBearerAuth()
@@ -20,22 +22,25 @@ export class OrderController {
   constructor(private readonly ordersService: OrderService) {}
 
   @Post()
-  placeOrder(@Req() req: any, @Body() dto: CreateOrderDto) {
+  @Roles('ADMIN', 'CUSTOMER')
+  placeOrder(@CurrentUser() userId: string, @Body() dto: CreateOrderDto) {
+    console.log('userId: ', userId);
     return this.ordersService.placeOrder(dto);
   }
 
   @Get()
-  findMyOrders(@Req() req: any, @Query() query: QueryOrderDto) {
-    return this.ordersService.findMyOrders(req.user.id, query);
+  findMyOrders(@CurrentUser() userId: string, @Query() query: QueryOrderDto) {
+    return this.ordersService.findMyOrders(userId, query);
   }
 
   @Get(':id')
-  findOne(@Req() req: any, @Param('id') id: string) {
+  findOne(@CurrentUser() userId: string, @Param('id') id: string) {
+    console.log('userId: ', userId);
     return this.ordersService.findOne(id);
   }
 
   @Patch(':id/cancel')
-  cancelOrder(@Req() req: any, @Param('id') id: string) {
-    return this.ordersService.cancelOrder(id, req.user.id);
+  cancelOrder(@CurrentUser() userId: string, @Param('id') id: string) {
+    return this.ordersService.cancelOrder(id, userId);
   }
 }

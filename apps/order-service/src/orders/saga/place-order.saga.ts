@@ -1,17 +1,10 @@
 import { BrokerService } from '@app/broker';
 import { Injectable, Logger } from '@nestjs/common';
+import { IProductValidateResult } from '../interfaces/order-item.interface';
 
 interface SagaStep {
   execute: () => Promise<any>;
   compensate: () => Promise<void>;
-}
-
-interface ProductValidationResult {
-  productId: string;
-  productName: string;
-  price: number;
-  qty: number;
-  subtotal: number;
 }
 
 @Injectable()
@@ -23,19 +16,24 @@ export class PlaceOrderSaga {
     orderId: string;
     userId: string;
     items: { productId: string; qty: number }[];
-  }): Promise<{ validatedItems: ProductValidationResult[]; total: number }> {
-    let validatedItems: ProductValidationResult[] = [];
+  }): Promise<{ validatedItems: IProductValidateResult[]; total: number }> {
+    let validatedItems: IProductValidateResult[] = [];
     const executedSteps: SagaStep[] = [];
 
     const steps: SagaStep[] = [
       {
         // Bước 1: validate product + lấy giá từ Product service
         execute: async () => {
-          this.logger.log(`[SAGA] Order ${input.orderId} validate product`);
-          validatedItems = await this.broker.send<ProductValidationResult[]>({
+          this.logger.log(
+            `[SAGA] Order ${input.orderId} validate product. Items: ${JSON.stringify(input.items.map((v) => v.productId))}`,
+          );
+          validatedItems = await this.broker.send<IProductValidateResult[]>({
             topic: 'product.validate',
             payload: { items: input.items },
           });
+          this.logger.log(
+            `[SAGA] Validate product return result: ${JSON.stringify(validatedItems)}`,
+          );
         },
         compensate: async () => {}, // không cần rollback, chỉ là đọc data
       },

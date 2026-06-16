@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, QueryFilter } from 'mongoose';
 import { Product, ProductDocument } from './schemas/product.schema';
-import { CreateProductDto } from './dto/create-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
+import { IProduct } from './interfaces/product.interface';
 
 @Injectable()
 export class ProductsRepository {
@@ -12,7 +12,7 @@ export class ProductsRepository {
     private readonly model: Model<ProductDocument>,
   ) {}
 
-  async create(dto: CreateProductDto): Promise<ProductDocument> {
+  async create(dto: IProduct): Promise<ProductDocument> {
     return this.model.create(dto);
   }
 
@@ -51,7 +51,10 @@ export class ProductsRepository {
     return this.model.find({ _id: { $in: ids } }).lean();
   }
 
-  async update(id: string, data: Partial<Product>): Promise<ProductDocument | null> {
+  async update(
+    id: string,
+    data: Partial<Product>,
+  ): Promise<ProductDocument | null> {
     return this.model.findByIdAndUpdate(id, data, { new: true }).lean();
   }
 

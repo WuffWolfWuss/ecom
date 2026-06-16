@@ -1,8 +1,11 @@
 import {
-  Entity, PrimaryGeneratedColumn, Column,
-  CreateDateColumn, UpdateDateColumn
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
 } from 'typeorm';
-import { IUser } from '../interfaces/user';
+import { EUserRole, IUser } from '../interfaces/user';
 
 @Entity('users')
 export class User implements IUser {
@@ -20,6 +23,9 @@ export class User implements IUser {
 
   @Column()
   lastName: string;
+
+  @Column({ type: 'enum', enum: EUserRole, default: EUserRole.CUSTOMER })
+  role: EUserRole;
 
   @Column({ default: true })
   isActive: boolean;

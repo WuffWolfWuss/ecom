@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ProductsRepository } from './products.repository';
 import { ElasticsearchService } from '@nestjs/elasticsearch';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -8,14 +13,16 @@ import { UpdateProductDto } from './dto/update-product.dto';
 
 @Injectable()
 export class ProductsService {
+  private readonly logger = new Logger(ProductsService.name);
+
   constructor(
     private readonly repo: ProductsRepository,
     private readonly elastic: ElasticsearchService,
     private readonly broker: BrokerService,
   ) {}
 
-  async create(dto: CreateProductDto) {
-    const product = await this.repo.create(dto);
+  async create(dto: CreateProductDto, userId: string) {
+    const product = await this.repo.create({ ...dto, createdBy: userId });
 
     // Index vào Elasticsearch để search
     await this.indexToElastic(product);
@@ -43,29 +50,40 @@ export class ProductsService {
     return this.repo.findMany(query);
   }
 
-  async update(id: string, dto: UpdateProductDto) {
-    const product = await this.repo.update(id, dto);
+  async update(id: string, dto: UpdateProductDto, userId: string) {
+    const product = await this.repo.findById(id);
     if (!product) throw new NotFoundException('Product not found');
+    if (product.createdBy !== userId)
+      throw new ForbiddenException('Access denied');
+
+    const updateProduct = await this.repo.update(id, dto);
 
     // Sync lại Elasticsearch
-    await this.indexToElastic(product);
+    await this.indexToElastic(updateProduct);
 
     return product;
   }
 
-  async remove(id: string) {
+  async remove(id: string, userId: string) {
+    const product = await this.repo.findById(id);
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.createdBy !== userId)
+      throw new ForbiddenException('Access denied');
+
     await this.repo.delete(id);
     await this.elastic.delete({ index: 'products', id }).catch(() => {});
   }
 
   // Được gọi bởi Order service qua NATS khi checkout
   async validateProducts(items: { productId: string; qty: number }[]) {
-    const ids = items.map(i => i.productId);
+    const ids = items.map((i) => i.productId);
+    this.logger.log(`validateProducts with ids: ${ids.toString()}`);
     const products = await this.repo.findByIds(ids);
 
-    return items.map(item => {
-      const product = products.find(p => p._id.toString() === item.productId);
-      if (!product) throw new NotFoundException(`Product ${item.productId} not found`);
+    return items.map((item) => {
+      const product = products.find((p) => p._id.toString() === item.productId);
+      if (!product)
+        throw new NotFoundException(`Product ${item.productId} not found`);
       return {
         productId: item.productId,
         name: product.name,
@@ -76,7 +94,8 @@ export class ProductsService {
     });
   }
 
-  private async indexToElastic(product: any) {
+  private async indexToElastic(product?: any) {
+    if (!product) return;
     await this.elastic.index({
       index: 'products',
       id: product._id.toString(),
@@ -96,7 +115,7 @@ export class ProductsService {
         multi_match: {
           query: query.search,
           fields: ['name^3', 'description'], // name quan trọng hơn 3x
-          fuzziness: 'AUTO',                 // typo tolerance
+          fuzziness: 'AUTO', // typo tolerance
         },
       },
     ];
@@ -120,6 +139,11 @@ export class ProductsService {
 
     const ids = result.hits.hits.map((h: any) => h._id);
     const items = await this.repo.findByIds(ids);
-    return { items, total: (result.hits.total as any).value, page: query.page, limit: query.limit };
+    return {
+      items,
+      total: (result.hits.total as any).value,
+      page: query.page,
+      limit: query.limit,
+    };
   }
 }

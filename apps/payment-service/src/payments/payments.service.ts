@@ -17,6 +17,7 @@ export class PaymentsService {
 
   async charge(dto: ChargeDto) {
     // Idempotency check — tránh charge 2 lần cùng 1 order
+    console.log(`[PAY] charging order...`);
     const existing = await this.repo.findByOrderId(dto.orderId);
     if (existing) {
       if (existing.status === EPaymentStatus.SUCCEEDED)
@@ -100,7 +101,9 @@ export class PaymentsService {
     await new Promise((r) => setTimeout(r, 300)); // giả lập latency
 
     // Giả lập 50% fail rate để test saga rollback
-    if (Math.random() < 0.5) throw new Error('Payment gateway error');
+    const succeeded_chance = Math.random();
+    console.log(`[PAY] sucess chance: ${succeeded_chance}`);
+    if (succeeded_chance < 0.5) throw new Error('Payment gateway error');
 
     return `txn_${Date.now()}`;
   }

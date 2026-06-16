@@ -34,7 +34,6 @@ export class OrderService {
         subtotal: 0,
       })),
     });
-    this.repo;
 
     try {
       const { validatedItems, total } = await this.saga.execute({
@@ -44,6 +43,7 @@ export class OrderService {
       });
 
       // Saga thành công — update order với thông tin thật
+      await this.repo.updateOrderItems(order.id, validatedItems, total);
       await this.repo.updateStatus(order.id, EOrderStatus.PAYMENT_COMPLETED);
 
       // Update items với giá thật từ product service
@@ -74,8 +74,7 @@ export class OrderService {
   async findOne(id: string, userId?: string) {
     const order = await this.repo.findById(id);
     if (!order) throw new NotFoundException('Order not found');
-    if (userId && order.userId !== userId)
-      throw new ForbiddenException('Access denied');
+    if (order.userId !== userId) throw new ForbiddenException('Access denied');
     return order;
   }
 

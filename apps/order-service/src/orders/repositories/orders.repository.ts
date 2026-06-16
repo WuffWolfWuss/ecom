@@ -1,16 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Order } from '../entities/order.entity';
 import { EOrderStatus } from '../enums/order-status.enum';
 import { OrderItem } from '../entities/order-item.entity';
 import { QueryOrderDto } from '../dto/query-order.dto';
+import { IProductValidateResult } from '../interfaces/order-item.interface';
 
 @Injectable()
 export class OrdersRepository {
   constructor(
     @InjectRepository(Order)
     private readonly repo: Repository<Order>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(data: {
@@ -70,6 +72,30 @@ export class OrdersRepository {
     await this.repo.update(id, {
       status,
       ...(failureReason && { failureReason }),
+    });
+  }
+
+  async updateOrderItems(
+    orderId: string,
+    validatedItems: IProductValidateResult[],
+    total: number,
+  ): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      // Update order total
+      await manager.update(Order, { id: orderId }, { totalAmount: total });
+
+      // Update order item
+      for (const item of validatedItems) {
+        await manager.update(
+          OrderItem,
+          { orderId, productId: item.productId },
+          {
+            productName: item.name,
+            price: item.price,
+            subtotal: item.subtotal,
+          },
+        );
+      }
     });
   }
 }
