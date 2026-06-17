@@ -3,7 +3,12 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable no-useless-catch */
-import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   Consumer,
@@ -20,6 +25,7 @@ import { IEventPayload, IKafkaBroker } from '../../constant/interfaces';
 export class KafkaBrokerService
   implements IKafkaBroker, OnModuleInit, OnModuleDestroy
 {
+  private readonly logger = new Logger(KafkaBrokerService.name);
   private readonly kafka: Kafka;
   private readonly producer: Producer;
   private readonly consumer: Consumer;
@@ -33,8 +39,8 @@ export class KafkaBrokerService
 
   constructor(private readonly config: ConfigService) {
     this.kafka = new Kafka({
-      clientId: config.get('KAFKA_CLIENT_ID', 'ecom-app'),
-      brokers: [config.get('KAFKA_BROKER', 'localhost:9092')],
+      clientId: this.config.get('KAFKA_CLIENT_ID', 'ecom-app'),
+      brokers: [this.config.get('KAFKA_BROKER', 'localhost:9092')],
       retry: { initialRetryTime: 100, retries: 8 },
     });
     this.producer = this.kafka.producer({
@@ -70,9 +76,14 @@ export class KafkaBrokerService
   private async initialize() {
     if (this.initialized) return;
 
-    await this.producer.connect();
-    await this.consumer.connect();
-    this.initialized = true;
+    try {
+      await this.producer.connect();
+      await this.consumer.connect();
+      this.initialized = true;
+      this.logger.log('Kafka connected');
+    } catch (error) {
+      this.logger.warn(`Kafka unavailable: ${(error as Error).message}`);
+    }
   }
 
   // Publish event (fire-and-forget)
@@ -89,7 +100,7 @@ export class KafkaBrokerService
     await this.initialize();
 
     try {
-      console.log('subscribe - Kafka create topic: ', topic);
+      this.logger.log('subscribe - Kafka create topic: ', topic);
       await this.createTopicIfNotExists(topic);
       this.handlers.set(topic, payload.handler);
       this.pendingTopics.push(topic);
@@ -157,7 +168,9 @@ export class KafkaBrokerService
     });
 
     this.consumerRunning = true;
-    console.log(`[Kafka] consuming topics: ${this.pendingTopics.join(', ')}`);
+    this.logger.log(
+      `[Kafka] consuming topics: ${this.pendingTopics.join(', ')}`,
+    );
   }
 
   private async createTopicIfNotExists(topic: string) {
@@ -171,6 +184,16 @@ export class KafkaBrokerService
         });
         console.log(`Topic "${topic}" created`);
       }
+    } finally {
+      await admin.disconnect();
+    }
+  }
+
+  async ping(): Promise<void> {
+    const admin = this.kafka.admin();
+    await admin.connect();
+    try {
+      await admin.listTopics();
     } finally {
       await admin.disconnect();
     }

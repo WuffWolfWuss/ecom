@@ -1,18 +1,10 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  ManyToOne,
-  JoinColumn,
-} from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { Order } from './order.entity';
 import { IOrderItem } from '../interfaces/order-item.interface';
+import { BaseEntity } from '@app/database';
 
 @Entity('order_items')
-export class OrderItem implements IOrderItem {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class OrderItem extends BaseEntity implements IOrderItem {
   @ManyToOne(() => Order, (order) => order.items, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'orderId' })
   order: Order;

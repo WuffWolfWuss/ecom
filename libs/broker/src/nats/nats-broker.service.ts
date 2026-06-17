@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   connect,
@@ -12,26 +12,44 @@ import { NATS_HANDLER_METADATA_KEY, NatsSubscription } from '../../constant';
 
 @Injectable()
 export class NatsBrokerService implements OnModuleDestroy {
-  private connection!: NatsConnection;
+  private readonly logger = new Logger(NatsBrokerService.name);
+  private connection: NatsConnection | null = null;
+  private connecting = false;
   private readonly subscriptions = new Map<string, Subscription>();
 
   constructor(private readonly config: ConfigService) {}
 
   private async initialize() {
-    if (this.connection) return;
-    this.connection = await connect({
-      servers: this.config.get('NATS_URL', 'nats://localhost:4222'),
-    });
+    if (this.connection && !this.connection.isClosed()) return this.connection;
+    if (this.connecting) return null;
+
+    this.connecting = true;
+    try {
+      this.connection = await connect({
+        servers: this.config.get('NATS_URL', 'nats://localhost:4222'),
+        reconnect: true, // tự reconnect khi mất kết nối
+        maxReconnectAttempts: 10,
+        reconnectTimeWait: 2000, // chờ 2s giữa các lần retry
+        timeout: 3000, // timeout 3s cho mỗi lần connect
+      });
+      this.logger.log('NATS connected');
+      return this.connection;
+    } catch (error) {
+      this.logger.warn(`NATS unavailable: ${(error as Error).message}`);
+      this.connection = null;
+      return null;
+    } finally {
+      this.connecting = false;
+    }
   }
 
   // Request-reply message (chờ response)
   async send<T>(topic: string, payload: any): Promise<T> {
-    await this.initialize();
-    const response = await this.connection.request(
-      topic,
-      JSON.stringify(payload),
-      { timeout: 5000 },
-    );
+    const conn = await this.initialize();
+    if (!conn) throw new Error('NATS connection unavailable');
+    const response = await conn.request(topic, JSON.stringify(payload), {
+      timeout: 5000,
+    });
     return response.json() as T;
   }
 
@@ -39,10 +57,16 @@ export class NatsBrokerService implements OnModuleDestroy {
     topic: string,
     handler: (data: any, msg: Msg) => Promise<any>,
   ) {
-    await this.initialize();
+    const conn = await this.initialize();
+    if (!conn) {
+      this.logger.warn(
+        `Skipping NATS subscribe for "${topic}" — connection unavailable`,
+      );
+      return;
+    }
     if (this.subscriptions.has(topic)) return;
 
-    const sub = this.connection.subscribe(topic, {
+    const sub = conn.subscribe(topic, {
       callback: (err, msg) => {
         if (err) return;
         const data = msg?.json();
@@ -83,5 +107,12 @@ export class NatsBrokerService implements OnModuleDestroy {
     for (const sub of this.subscriptions.values()) sub.unsubscribe();
     await this.connection?.drain();
     await this.connection?.close();
+  }
+
+  async ping(): Promise<void> {
+    const conn = await this.initialize(); // no-op nếu đã connected
+    if (!conn || conn.isClosed()) {
+      throw new Error('NATS connection is closed');
+    }
   }
 }

@@ -1,2 +1,2 @@
-export * from './database.module';
-export * from './database.service';
+export * from './mongoose/mongoose-config.factory';
+export * from './typeORM';

@@ -5,6 +5,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { InventoryModule } from './inventory/inventory.module';
 import { BrokerModule } from '@app/broker';
 import { Inventory } from './inventory/entities/inventory.entity';
+import { typeOrmConfigFactory } from '@app/database';
+import { HealthModule } from '@app/common';
 
 @Module({
   imports: [
@@ -14,17 +16,10 @@ import { Inventory } from './inventory/entities/inventory.entity';
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        host: config.get('DB_HOST', 'localhost'),
-        port: config.get<number>('DB_PORT', 5432),
-        username: config.get('DB_USER', 'ecom_user'),
-        password: config.get('DB_PASS', 'ecom_pass'),
-        database: config.get('DB_NAME', 'ecom_inventory'),
-        entities: [Inventory],
-        synchronize: true,
-      }),
+      useFactory: (config: ConfigService) =>
+        typeOrmConfigFactory(config, [Inventory]),
     }),
+    HealthModule.forRoot({ database: 'postgres' }),
     BrokerModule,
     InventoryModule,
   ],
