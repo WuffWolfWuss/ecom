@@ -1,6 +1,5 @@
 import {
   Entity,
-  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
@@ -9,12 +8,10 @@ import {
 import { EOrderStatus } from '../enums/order-status.enum';
 import { OrderItem } from './order-item.entity';
 import { IOrder } from '../interfaces/order.interface';
+import { BaseEntity } from '@app/database';
 
 @Entity('orders')
-export class Order implements IOrder {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class Order extends BaseEntity implements IOrder {
   @Column()
   userId: string;
 
@@ -39,10 +36,4 @@ export class Order implements IOrder {
 
   @Column({ nullable: true })
   failureReason: string;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
 }

@@ -7,6 +7,7 @@ import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const app: INestApplication<any> = await NestFactory.create(AppModule);
+  app.enableShutdownHooks(); // graceful shutdown
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   app.useGlobalGuards(

@@ -36,4 +36,13 @@ export class BrokerService {
     await this.kafka.disconnect();
     await this.nats.onModuleDestroy();
   }
+
+  // Health check
+  async pingKafka(): Promise<void> {
+    await this.kafka.ping();
+  }
+
+  async pingNats(): Promise<void> {
+    await this.nats.ping();
+  }
 }

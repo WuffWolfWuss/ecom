@@ -6,12 +6,10 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { EUserRole, IUser } from '../interfaces/user';
+import { BaseEntity } from '@app/database';
 
 @Entity('users')
-export class User implements IUser {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class User extends BaseEntity implements IUser {
   @Column({ unique: true })
   email: string;
 
@@ -29,10 +27,4 @@ export class User implements IUser {
 
   @Column({ default: true })
   isActive: boolean;
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
 }

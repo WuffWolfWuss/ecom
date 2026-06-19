@@ -1,18 +1,10 @@
 // inventory/entities/inventory.entity.ts
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  UpdateDateColumn,
-  CreateDateColumn,
-} from 'typeorm';
+import { Entity, Column } from 'typeorm';
 import { IInventory } from '../interfaces/inventory';
+import { BaseEntity } from '@app/database';
 
 @Entity('inventory')
-export class Inventory implements IInventory {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
+export class Inventory extends BaseEntity implements IInventory {
   @Column({ unique: true })
   productId: string;
 
@@ -21,12 +13,6 @@ export class Inventory implements IInventory {
 
   @Column({ default: 0 })
   reserved: number; // đang được giữ chỗ, chưa trừ hẳn
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
 
   get available(): number {
     return this.stock - this.reserved || 0;
