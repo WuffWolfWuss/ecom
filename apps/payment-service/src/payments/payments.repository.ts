@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { Payment } from './entities/payment.entity';
 import { ChargeDto } from './dto/charge.dto';
 import { EPaymentStatus } from './constants/enum';
@@ -31,7 +31,12 @@ export class PaymentsRepository {
     orderId: string,
     status: EPaymentStatus,
     data?: { transactionId?: string; failureReason?: string },
+    manager?: EntityManager,
   ): Promise<void> {
-    await this.repo.update({ orderId }, { status, ...data });
+    await this.getRepo(manager).update({ orderId }, { status, ...data });
+  }
+
+  private getRepo(manager?: EntityManager): Repository<Payment> {
+    return manager ? manager.getRepository(Payment) : this.repo;
   }
 }

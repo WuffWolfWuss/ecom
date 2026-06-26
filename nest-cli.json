@@ -73,6 +73,15 @@
         "tsConfigPath": "apps/order-service/tsconfig.app.json"
       }
     },
+    "outbox": {
+      "type": "library",
+      "root": "libs/outbox",
+      "entryFile": "index",
+      "sourceRoot": "libs/outbox/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/outbox/tsconfig.lib.json"
+      }
+    },
     "payment-service": {
       "type": "application",
       "root": "apps/payment-service",
