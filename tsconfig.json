@@ -39,6 +39,12 @@
       ],
       "@app/database/*": [
         "libs/database/src/*"
+      ],
+      "@app/outbox": [
+        "libs/outbox/src"
+      ],
+      "@app/outbox/*": [
+        "libs/outbox/src/*"
       ]
     }
   }

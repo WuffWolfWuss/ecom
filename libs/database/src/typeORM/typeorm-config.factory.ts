@@ -12,6 +12,7 @@ export const typeOrmConfigFactory = (
   password: config.get('DB_PASS'),
   database: config.get('DB_NAME'),
   entities,
+  autoLoadEntities: true,
   synchronize: config.get('NODE_ENV') !== 'production',
   ssl: config.get('DB_SSL') === 'true' ? { rejectUnauthorized: false } : false,
   extra: {

@@ -24,8 +24,7 @@ export class Product implements IProduct {
   @Prop([String])
   images: string[];
 
-  // Flexible attributes cho từng category
-  // VD: { color: 'red', size: 'XL' } hoặc { storage: '256GB', ram: '8GB' }
+  // { color: 'red', size: 'XL' } or { storage: '256GB', ram: '8GB' }
   @Prop({ type: Object, default: {} })
   attributes: Record<string, any>;
 
@@ -41,7 +40,7 @@ export class Product implements IProduct {
 
 export const ProductSchema = SchemaFactory.createForClass(Product);
 
-// Text index cho search cơ bản (fallback khi không có Elasticsearch)
+// Text index cho search
 ProductSchema.index({ name: 'text', description: 'text' });
 ProductSchema.index({ categoryId: 1 });
 ProductSchema.index({ price: 1 });

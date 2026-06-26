@@ -2,22 +2,28 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { PaymentsRepository } from './payments.repository';
 import { ChargeDto } from './dto/charge.dto';
 import { EPaymentStatus } from './constants/enum';
 import { BrokerService } from '@app/broker';
+import { OutboxService } from '@app/outbox';
+import { DataSource } from 'typeorm';
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
   constructor(
     private readonly repo: PaymentsRepository,
     private readonly broker: BrokerService,
+    private readonly outbox: OutboxService,
+    private readonly dataSource: DataSource,
   ) {}
 
   async charge(dto: ChargeDto) {
     // Idempotency check — tránh charge 2 lần cùng 1 order
-    console.log(`[PAY] charging order...`);
+    this.logger.log(`[PAY] charging order...`);
     const existing = await this.repo.findByOrderId(dto.orderId);
     if (existing) {
       if (existing.status === EPaymentStatus.SUCCEEDED)
@@ -35,18 +41,20 @@ export class PaymentsService {
         payment.method,
       );
 
-      await this.repo.updateStatus(payment.orderId, EPaymentStatus.SUCCEEDED, {
-        transactionId,
-      });
+      await this.dataSource.transaction(async (manager) => {
+        await this.repo.updateStatus(
+          payment.orderId,
+          EPaymentStatus.SUCCEEDED,
+          { transactionId },
+          manager,
+        );
 
-      // Publish event để inventory confirm reservation
-      await this.broker.publish({
-        topic: 'payment.succeeded',
-        payload: {
+        await this.outbox.addEvent(manager, 'payment.succeeded', {
+          id: payment.orderId,
           orderId: payment.orderId,
           userId: payment.userId,
           transactionId,
-        },
+        });
       });
 
       return { success: true, transactionId };
@@ -70,11 +78,19 @@ export class PaymentsService {
       // Production: gọi Stripe refund API
       await this.processRefund(payment.transactionId);
 
-      await this.repo.updateStatus(orderId, EPaymentStatus.REFUNDED);
+      await this.dataSource.transaction(async (manager) => {
+        await this.repo.updateStatus(
+          orderId,
+          EPaymentStatus.REFUNDED,
+          undefined,
+          manager,
+        );
 
-      await this.broker.publish({
-        topic: 'payment.refunded',
-        payload: { orderId, userId: payment.userId },
+        await this.outbox.addEvent(manager, 'payment.refunded', {
+          id: orderId,
+          orderId,
+          userId: payment.userId,
+        });
       });
 
       return { success: true };

@@ -6,6 +6,7 @@ import {
 import { DataSource, Repository } from 'typeorm';
 import { Inventory } from '../entities/inventory.entity';
 import { InjectRepository } from '@nestjs/typeorm';
+import { InventoryConfirmation } from '../entities/inventory.confirmation';
 
 @Injectable()
 export class InventoryRepository {
@@ -66,9 +67,20 @@ export class InventoryRepository {
 
   // Confirm reserve → trừ stock thật sau khi payment thành công
   async confirmReservation(
+    orderId: string,
     items: { productId: string; qty: number }[],
   ): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
+      try {
+        await manager.insert(InventoryConfirmation, { orderId });
+      } catch (error) {
+        // Postgres unique_violation error code = 23505
+        if (error?.code === '23505' || error?.driverError?.code === '23505') {
+          // order đã confirmed, skip
+          return;
+        }
+        throw error;
+      }
       for (const item of items) {
         await manager.decrement(
           Inventory,
