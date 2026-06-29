@@ -6,3 +6,9 @@ export interface IInventory {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export enum ReservationStatus {
+  RESERVED = 'RESERVED',
+  CONFIRMED = 'CONFIRMED',
+  RELEASED = 'RELEASED',
+}

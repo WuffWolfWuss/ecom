@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  Admin,
   Consumer,
   EachMessagePayload,
   Kafka,
@@ -29,6 +30,7 @@ export class KafkaBrokerService
   private readonly kafka: Kafka;
   private readonly producer: Producer;
   private readonly consumer: Consumer;
+  private readonly admin: Admin;
   private readonly handlers: Map<
     string | RegExp,
     (payload: EachMessagePayload) => Promise<void>
@@ -63,6 +65,7 @@ export class KafkaBrokerService
       // partitionAssigners: [PartitionAssigners.roundRobin],
       retry: { initialRetryTime: 300, maxRetryTime: 10000, retries: 3 },
     });
+    this.admin = this.kafka.admin();
   }
 
   async onModuleInit() {
@@ -101,7 +104,7 @@ export class KafkaBrokerService
 
     try {
       this.logger.log('subscribe - Kafka create topic: ', topic);
-      await this.createTopicIfNotExists(topic);
+      // await this.createTopicIfNotExists(topic);
       this.handlers.set(topic, payload.handler);
       this.pendingTopics.push(topic);
       // await this.consumer.subscribe({ topics: [topic], fromBeginning: true });
@@ -190,12 +193,13 @@ export class KafkaBrokerService
   }
 
   async ping(): Promise<void> {
-    const admin = this.kafka.admin();
-    await admin.connect();
-    try {
-      await admin.listTopics();
-    } finally {
-      await admin.disconnect();
+    if (!this.initialized) {
+      throw new Error('Kafka producer not initialized');
     }
+
+    await this.producer.send({
+      topic: '__health_check',
+      messages: [{ value: 'ping' }],
+    });
   }
 }

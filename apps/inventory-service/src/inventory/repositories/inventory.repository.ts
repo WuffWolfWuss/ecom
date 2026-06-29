@@ -1,15 +1,18 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { Inventory } from '../entities/inventory.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { InventoryConfirmation } from '../entities/inventory.confirmation';
+import { Reservation } from '../entities/reservation.entity';
+import { ReservationStatus } from '../interfaces/inventory';
 
 @Injectable()
 export class InventoryRepository {
+  private readonly logger = new Logger(InventoryRepository.name);
   constructor(
     @InjectRepository(Inventory)
     private readonly repo: Repository<Inventory>,
@@ -39,8 +42,16 @@ export class InventoryRepository {
   }
 
   // Reserve stock cho một order — dùng transaction để tránh race condition
-  async reserve(items: { productId: string; qty: number }[]): Promise<void> {
-    await this.dataSource.transaction(async (manager) => {
+  async reserve(
+    orderId: string,
+    items: { productId: string; qty: number }[],
+  ): Promise<string> {
+    return this.dataSource.transaction(async (manager) => {
+      const existing = await manager.findOne(Reservation, {
+        where: { orderId },
+      });
+      if (existing) return existing.id;
+
       for (const item of items) {
         // Pessimistic lock — lock row trước khi đọc
         const inv = await manager.findOne(Inventory, {
@@ -62,26 +73,34 @@ export class InventoryRepository {
           item.qty,
         );
       }
+      const reservation = manager.create(Reservation, {
+        orderId,
+        items,
+        status: ReservationStatus.RESERVED,
+      });
+      await manager.save(reservation);
+
+      return reservation.id;
     });
   }
 
   // Confirm reserve → trừ stock thật sau khi payment thành công
-  async confirmReservation(
-    orderId: string,
-    items: { productId: string; qty: number }[],
-  ): Promise<void> {
+  async confirmReservation(orderId: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
-      try {
-        await manager.insert(InventoryConfirmation, { orderId });
-      } catch (error) {
-        // Postgres unique_violation error code = 23505
-        if (error?.code === '23505' || error?.driverError?.code === '23505') {
-          // order đã confirmed, skip
-          return;
-        }
-        throw error;
+      const reservation = await manager.findOne(Reservation, {
+        where: { orderId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!reservation) {
+        this.logger.error(
+          `confirmReservation: no reservation found for order ${orderId}`,
+        );
+        return;
       }
-      for (const item of items) {
+
+      if (reservation.status !== ReservationStatus.RESERVED) return;
+
+      for (const item of reservation.items) {
         await manager.decrement(
           Inventory,
           { productId: item.productId },
@@ -95,13 +114,28 @@ export class InventoryRepository {
           item.qty,
         );
       }
+
+      reservation.status = ReservationStatus.CONFIRMED;
+      await manager.save(reservation);
     });
   }
 
   // Release reserve → hoàn lại khi order fail/cancel
-  async release(items: { productId: string; qty: number }[]): Promise<void> {
+  async release(reservationId: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
-      for (const item of items) {
+      const reservation = await manager.findOne(Reservation, {
+        where: { id: reservationId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!reservation) {
+        this.logger.warn(
+          `confirmReservation: no reservation found for reservationId ${reservationId}`,
+        );
+        return;
+      }
+
+      for (const item of reservation.items) {
         await manager.decrement(
           Inventory,
           { productId: item.productId },

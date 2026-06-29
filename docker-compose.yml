@@ -35,7 +35,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: ecom_redis
-    command: redis-server --requirepass ecom_pass
+    command: redis-server --requirepass ecom_pass --notify-keyspace-events Ex
     ports:
       - '6379:6379'
     volumes:

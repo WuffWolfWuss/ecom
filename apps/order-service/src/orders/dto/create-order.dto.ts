@@ -18,8 +18,6 @@ export class OrderItemDto {
 }
 
 export class CreateOrderDto {
-  @ApiProperty()
-  @IsString()
   userId: string;
 
   @ApiProperty({ type: [OrderItemDto] })

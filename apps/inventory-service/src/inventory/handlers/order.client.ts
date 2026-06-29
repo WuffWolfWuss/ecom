@@ -12,6 +12,7 @@ export interface OrderDetail {
 }
 
 // Service Client pt
+// Deprecated
 @Injectable()
 export class OrderClient {
   constructor(private readonly broker: BrokerService) {}
