@@ -45,6 +45,12 @@
       ],
       "@app/outbox/*": [
         "libs/outbox/src/*"
+      ],
+      "@app/redis": [
+        "libs/redis/src"
+      ],
+      "@app/redis/*": [
+        "libs/redis/src/*"
       ]
     }
   }

@@ -1,4 +1,3 @@
-// inventory/inventory.service.ts
 import {
   Injectable,
   NotFoundException,
@@ -6,14 +5,14 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InventoryRepository } from './repositories/inventory.repository';
-import { OrderClient } from './handlers/order.client';
+import { ReservationRepository } from './repositories/reservation.repository';
 
 @Injectable()
 export class InventoryService {
   private readonly logger = new Logger(InventoryService.name);
   constructor(
     private readonly repo: InventoryRepository,
-    private readonly orderClient: OrderClient,
+    private readonly repoReservate: ReservationRepository,
   ) {}
 
   async getStock(productId: string) {
@@ -43,8 +42,8 @@ export class InventoryService {
 
   async reserve(orderId: string, items: { productId: string; qty: number }[]) {
     try {
-      await this.repo.reserve(items);
-      return { success: true, orderId };
+      const reservationId = await this.repo.reserve(orderId, items);
+      return { success: true, reservationId };
     } catch (error) {
       throw new BadRequestException(error.message);
     }
@@ -52,13 +51,13 @@ export class InventoryService {
 
   async confirmReservation(orderId: string) {
     this.logger.log(`confirmReservation Order Id: ${orderId}`);
-    const items = await this.orderClient.getOrderItems(orderId);
-    await this.repo.confirmReservation(items);
+    // const items = await this.orderClient.getOrderItems(orderId);
+    await this.repo.confirmReservation(orderId);
     return { success: true };
   }
 
-  async release(items: { productId: string; qty: number }[]) {
-    await this.repo.release(items);
+  async release(reservationId: string) {
+    await this.repo.release(reservationId);
     return { success: true };
   }
 
@@ -81,5 +80,15 @@ export class InventoryService {
       allAvailable: result.every((r) => r.canFulfill),
       items: result,
     };
+  }
+
+  async getReservationStatus(orderId: string) {
+    try {
+      const reservation =
+        await this.repoReservate.getReservationStatus(orderId);
+      return reservation;
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 }

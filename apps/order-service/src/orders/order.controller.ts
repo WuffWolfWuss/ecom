@@ -24,8 +24,7 @@ export class OrderController {
   @Post()
   @Roles('ADMIN', 'CUSTOMER')
   placeOrder(@CurrentUser() userId: string, @Body() dto: CreateOrderDto) {
-    console.log('userId: ', userId);
-    return this.ordersService.placeOrder(dto);
+    return this.ordersService.placeOrder({ ...dto, userId });
   }
 
   @Get()

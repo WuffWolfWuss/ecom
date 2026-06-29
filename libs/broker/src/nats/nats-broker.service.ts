@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
@@ -9,6 +11,11 @@ import {
   Subscription,
 } from '@nats-io/transport-node';
 import { NATS_HANDLER_METADATA_KEY, NatsSubscription } from '../../constant';
+import {
+  AmbiguousRpcException,
+  BusinessRpcException,
+} from '../exceptions/broker.exceptions';
+import { normalizeRpcError } from '../exceptions/rpc-filter.error';
 
 @Injectable()
 export class NatsBrokerService implements OnModuleDestroy {
@@ -46,11 +53,32 @@ export class NatsBrokerService implements OnModuleDestroy {
   // Request-reply message (chờ response)
   async send<T>(topic: string, payload: any): Promise<T> {
     const conn = await this.initialize();
-    if (!conn) throw new Error('NATS connection unavailable');
-    const response = await conn.request(topic, JSON.stringify(payload), {
-      timeout: 5000,
-    });
-    return response.json() as T;
+    if (!conn)
+      throw new AmbiguousRpcException('NATS connection unavailable', topic);
+
+    let raw: { success: boolean; data?: T; error?: any };
+    try {
+      const response = await conn.request(topic, JSON.stringify(payload), {
+        timeout: 5000,
+      });
+      raw = response.json();
+    } catch (error: any) {
+      // No response, handle status unknown
+      throw new AmbiguousRpcException(
+        `Request to "${topic}" got no reply (${error.code ?? error.name ?? 'unknown'}).`,
+        topic,
+      );
+    }
+
+    // received response
+    if (!raw.success) {
+      throw new BusinessRpcException(raw.error?.message ?? 'Remote error', {
+        topic,
+        code: raw.error?.code,
+        details: raw.error?.details,
+      });
+    }
+    return raw.data as T;
   }
 
   async subscribe(
@@ -71,13 +99,9 @@ export class NatsBrokerService implements OnModuleDestroy {
         if (err) return;
         const data = msg?.json();
         void (async () => {
-          try {
-            const response = await handler(data, msg);
-            if (msg.reply && response !== undefined) {
-              msg.respond(JSON.stringify(response));
-            }
-          } catch (error) {
-            console.error(`NATS handler error for ${topic}:`, error);
+          const response = await handler(data, msg);
+          if (msg.reply) {
+            msg.respond(JSON.stringify(response));
           }
         })();
       },
@@ -98,7 +122,12 @@ export class NatsBrokerService implements OnModuleDestroy {
         );
       }
       await this.subscribe(topic, async (data, msg) => {
-        return method.call(instance, data, msg);
+        try {
+          const result = await method.call(instance, data, msg);
+          return { success: true, data: result };
+        } catch (error) {
+          return normalizeRpcError(error, this.logger);
+        }
       });
     }
   }

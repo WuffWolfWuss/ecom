@@ -35,7 +35,6 @@ export class PaymentsService {
 
     try {
       // Simulate payment gateway call
-      // Production: thay bằng Stripe SDK
       const transactionId = await this.processPayment(
         payment.amount,
         payment.method,
@@ -63,15 +62,26 @@ export class PaymentsService {
         failureReason: error.message,
       });
 
-      return { success: false, reason: error.message };
+      throw error;
     }
   }
 
   async refund(orderId: string) {
     const payment = await this.repo.findByOrderId(orderId);
-    if (!payment) throw new NotFoundException('Payment not found');
-    if (payment.status !== EPaymentStatus.SUCCEEDED) {
-      throw new BadRequestException('Only succeeded payments can be refunded');
+    if (!payment) return { success: true, reason: 'NO_PAYMENT_FOUND' };
+
+    switch (payment.status) {
+      case EPaymentStatus.REFUNDED:
+        return { success: true, reason: 'ALREADY_REFUNDED' };
+
+      case EPaymentStatus.FAILED:
+        return { success: true, reason: 'PAYMENT_NOT_SUCCEEDED' };
+
+      case EPaymentStatus.PENDING:
+        return { success: false, reason: 'PAYMENT_STILL_PENDING' };
+
+      default:
+        break;
     }
 
     try {
@@ -93,7 +103,7 @@ export class PaymentsService {
         });
       });
 
-      return { success: true };
+      return { success: true, reason: 'REFUNDED' };
     } catch (error) {
       throw new BadRequestException(`Refund failed: ${error.message}`);
     }
@@ -118,8 +128,8 @@ export class PaymentsService {
 
     // Giả lập 50% fail rate để test saga rollback
     const succeeded_chance = Math.random();
-    console.log(`[PAY] sucess chance: ${succeeded_chance}`);
-    if (succeeded_chance < 0.5) throw new Error('Payment gateway error');
+    this.logger.log(`[PAY] sucess chance: ${succeeded_chance} < 0.6`);
+    if (succeeded_chance < 0.6) throw new Error('Payment gateway error');
 
     return `txn_${Date.now()}`;
   }

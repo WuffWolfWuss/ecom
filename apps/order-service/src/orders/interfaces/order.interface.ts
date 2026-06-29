@@ -11,3 +11,9 @@ export interface IOrder {
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface IVerifySagaResult {
+  happened: boolean;
+  reservationId?: string;
+  transactionId?: string;
+}

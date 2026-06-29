@@ -5,17 +5,17 @@ import { InventoryService } from './inventory.service';
 import { Inventory } from './entities/inventory.entity';
 import { InventoryEventHandler } from './handlers/inventory.handlers';
 import { InventoryRepository } from './repositories/inventory.repository';
-import { OrderClient } from './handlers/order.client';
-import { InventoryConfirmation } from './entities/inventory.confirmation';
+import { Reservation } from './entities/reservation.entity';
+import { ReservationRepository } from './repositories/reservation.repository';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Inventory, InventoryConfirmation])],
+  imports: [TypeOrmModule.forFeature([Inventory, Reservation])],
   controllers: [InventoryController],
   providers: [
     InventoryService,
     InventoryEventHandler,
     InventoryRepository,
-    OrderClient,
+    ReservationRepository,
   ],
 })
 export class InventoryModule {}
