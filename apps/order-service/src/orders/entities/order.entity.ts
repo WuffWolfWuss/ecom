@@ -1,10 +1,4 @@
-import {
-  Entity,
-  Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-  OneToMany,
-} from 'typeorm';
+import { Entity, Column, OneToMany } from 'typeorm';
 import { EOrderStatus } from '../enums/order-status.enum';
 import { OrderItem } from './order-item.entity';
 import { IOrder } from '../interfaces/order.interface';

@@ -7,7 +7,6 @@ import {
 import { PaymentsRepository } from './payments.repository';
 import { ChargeDto } from './dto/charge.dto';
 import { EPaymentStatus } from './constants/enum';
-import { BrokerService } from '@app/broker';
 import { OutboxService } from '@app/outbox';
 import { DataSource } from 'typeorm';
 
@@ -16,7 +15,6 @@ export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
   constructor(
     private readonly repo: PaymentsRepository,
-    private readonly broker: BrokerService,
     private readonly outbox: OutboxService,
     private readonly dataSource: DataSource,
   ) {}

@@ -1,4 +1,4 @@
-import { AmbiguousRpcException, BrokerService } from '@app/broker';
+import { AmbiguousRpcException } from '@app/broker';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { IProductValidateResult } from '../interfaces/order-item.interface';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -8,7 +8,11 @@ import Redis from 'ioredis';
 import { Repository } from 'typeorm';
 import { ESagaStep } from '../enums/saga-steps.enum';
 import { IVerifySagaResult } from '../interfaces/order.interface';
-import { InventoryBrokerService } from '../handlers/inventory.broker';
+import {
+  InventoryBrokerService,
+  PaymentBrokerService,
+  ProductBrokerService,
+} from '../handlers';
 
 const RESERVATION_TTL_SECONDS = 15 * 60;
 
@@ -29,7 +33,8 @@ export class PlaceOrderSaga {
   private readonly logger = new Logger(PlaceOrderSaga.name);
   constructor(
     private readonly inventoryBroker: InventoryBrokerService,
-    private readonly broker: BrokerService,
+    private readonly paymentBroker: PaymentBrokerService,
+    private readonly productBroker: ProductBrokerService,
     @InjectRepository(SagaState)
     private readonly sagaRepo: Repository<SagaState>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
@@ -39,7 +44,6 @@ export class PlaceOrderSaga {
     input: InputOrder,
   ): Promise<{ validatedItems: IProductValidateResult[]; total: number }> {
     const executedSteps: SagaStep[] = [];
-    let reservationId: string;
     let validatedItems: IProductValidateResult[] = [];
 
     const saga = await this.sagaRepo.save(
@@ -56,7 +60,12 @@ export class PlaceOrderSaga {
         name: ESagaStep.VALIDATE_PRODUCT,
         // Bước 1: validate product + lấy giá từ Product service
         execute: async () => {
-          validatedItems = await this.stepValidateProduct(input);
+          this.logger.log(
+            `[SAGA] Order ${input.orderId} stepValidateProduct. Items: ${JSON.stringify(input.items.map((v) => v.productId))}`,
+          );
+          validatedItems = await this.productBroker.productValidate(
+            input.items,
+          );
         },
         compensate: async () => {}, // không cần rollback, chỉ là đọc data
       },
@@ -64,32 +73,50 @@ export class PlaceOrderSaga {
         name: ESagaStep.RESERVE_INVENTORY,
         // Bước 2: reserve stock từ Inventory service
         execute: async () => {
-          reservationId = await this.stepItemReserve(input, validatedItems);
-          saga.reservationId = reservationId;
+          this.logger.log(`[SAGA] Order ${input.orderId} stepItemReserve`);
+          const result = await this.inventoryBroker.reservation(
+            input.orderId,
+            validatedItems,
+          );
+          saga.reservationId = result.reservationId;
           await this.sagaRepo.save(saga);
 
           // Set saga timeout
           await this.redis.set(
             `saga:timeout:${input.orderId}`,
-            reservationId,
+            saga.reservationId,
             'EX',
             RESERVATION_TTL_SECONDS,
           );
         },
-        compensate: async () =>
-          this.stepIntemReservceConpensate(input, reservationId),
+        compensate: async () => {
+          this.logger.log(
+            `[SAGA] Order ${input.orderId} Failed. stepIntemReservceConpensate...`,
+          );
+          await this.inventoryBroker.release(saga.reservationId);
+        },
       },
       {
         name: ESagaStep.CHARGE_PAYMENT,
         // Bước 3: charge tiền qua Payment service
         execute: async () => {
-          const transactionId = await this.stepPayment(input, validatedItems);
+          this.logger.log(`[SAGA] Order ${input.orderId} stepPayment`);
+          const total = validatedItems.reduce((sum, i) => sum + i.subtotal, 0);
+          const result = await this.paymentBroker.paymentCharge(
+            input.orderId,
+            input.userId,
+            total,
+          );
 
-          saga.transactionId = transactionId;
+          saga.transactionId = result.transactionId;
           await this.redis.del(`saga:timeout:${input.orderId}`);
         },
-        compensate: async () =>
-          this.stepPaymentConpensate(input, validatedItems),
+        compensate: async () => {
+          this.logger.log(
+            `[SAGA] Order ${input.orderId} Failed. stepPaymentConpensate...`,
+          );
+          await this.paymentBroker.paymentRefund(input.orderId);
+        },
       },
     ];
 
@@ -110,12 +137,21 @@ export class PlaceOrderSaga {
               step.name,
               input.orderId,
             );
+
+            if (
+              step.name === ESagaStep.RESERVE_INVENTORY.toString() &&
+              verifyResult.reservationId
+            ) {
+              saga.reservationId = verifyResult.reservationId;
+            }
           } catch (verifyError) {
             saga.lastError = `Verify failed: ${(verifyError as Error).message}`;
             saga.verifyRetryCount = (saga.verifyRetryCount ?? 0) + 1;
             await this.sagaRepo.save(saga);
             throw error; // break loop
           }
+
+          // Compensate chỉ những step đã thực sự chạy
           if (verifyResult.happened) {
             executedSteps.push(step);
           }
@@ -153,15 +189,12 @@ export class PlaceOrderSaga {
     orderId: string,
   ): Promise<IVerifySagaResult> {
     if (step === ESagaStep.RESERVE_INVENTORY.toString()) {
-      const check = await this.inventoryBroker.getReservationStatus<{
-        exists: boolean;
-        reservationId?: string;
-      }>(orderId);
+      const check = await this.inventoryBroker.getReservationStatus(orderId);
       return { happened: check.exists, reservationId: check.reservationId };
     }
     if (step === ESagaStep.CHARGE_PAYMENT.toString()) {
-      // TODO: check status payment exist.
-      return { happened: false, transactionId: '' };
+      const check = await this.paymentBroker.getPaymentStatus(orderId);
+      return { happened: false, transactionId: check.transactionId };
     }
     return { happened: false }; // false = step chưa từng xảy ra, không cần compensate step này
   }
@@ -176,16 +209,9 @@ export class PlaceOrderSaga {
         saga.currentStep === ESagaStep.CHARGE_PAYMENT.toString() &&
         saga.transactionId
       ) {
-        this.logger.log(`[Reconciliation] Order ${saga.id} refunding payment`);
-        await this.broker.send({
-          topic: 'payment.refund',
-          payload: { orderId: saga.id },
-        });
+        await this.paymentBroker.paymentRefund(saga.id);
       }
       if (saga.reservationId) {
-        this.logger.log(
-          `[Reconciliation] Order ${saga.id} releasing reservation`,
-        );
         await this.inventoryBroker.release(saga.reservationId);
       }
       await this.redis.del(`saga:timeout:${saga.id}`);
@@ -198,86 +224,5 @@ export class PlaceOrderSaga {
       await this.sagaRepo.save(saga);
       throw err;
     }
-  }
-
-  private async stepValidateProduct(input: InputOrder) {
-    this.logger.log(
-      `[SAGA] Order ${input.orderId} validate product. Items: ${JSON.stringify(input.items.map((v) => v.productId))}`,
-    );
-    const validatedItems = await this.broker.send<IProductValidateResult[]>({
-      topic: 'product.validate',
-      payload: { items: input.items },
-    });
-    this.logger.log(
-      `[SAGA] Validate product return result: ${JSON.stringify(validatedItems)}`,
-    );
-
-    return validatedItems;
-  }
-
-  private async stepItemReserve(
-    input: InputOrder,
-    validatedItems: IProductValidateResult[],
-  ): Promise<string> {
-    const result = await this.inventoryBroker.reservation<{
-      success: boolean;
-      reservationId: string;
-      reason?: string;
-    }>(input.orderId, validatedItems);
-
-    return result.reservationId;
-  }
-
-  private async stepPayment(
-    input: InputOrder,
-    validatedItems: IProductValidateResult[],
-  ): Promise<string> {
-    this.logger.log(`[SAGA] Order ${input.orderId} payment charge`);
-    const total = validatedItems.reduce((sum, i) => sum + i.subtotal, 0);
-    const result = await this.broker.send<{
-      success: boolean;
-      transactionId: string;
-    }>({
-      topic: 'payment.charge',
-      payload: {
-        orderId: input.orderId,
-        userId: input.userId,
-        amount: total,
-      },
-    });
-    this.logger.log(`[SAGA] Order return with data: ${JSON.stringify(result)}`);
-
-    return result.transactionId;
-  }
-
-  private async stepPaymentConpensate(
-    input: InputOrder,
-    validatedItems: IProductValidateResult[],
-  ) {
-    this.logger.log(
-      `[SAGA] Order ${input.orderId} Failed. stepPaymentConpensate...`,
-    );
-    await this.broker.send({
-      topic: 'inventory.release',
-      payload: {
-        items: validatedItems.map((i) => ({
-          productId: i.productId,
-          qty: i.qty,
-        })),
-      },
-    });
-  }
-
-  private async stepIntemReservceConpensate(
-    input: InputOrder,
-    reservationId: string,
-  ) {
-    this.logger.log(
-      `[SAGA] Order ${input.orderId} Failed. stepIntemReservceConpensate...`,
-    );
-    await this.broker.send({
-      topic: 'inventory.release',
-      payload: { reservationId },
-    });
   }
 }

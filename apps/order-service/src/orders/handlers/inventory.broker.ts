@@ -1,16 +1,27 @@
 import { BrokerService } from '@app/broker';
 import { Injectable, Logger } from '@nestjs/common';
 
+interface IReservationStatus {
+  exists: boolean;
+  reservationId?: string;
+}
+
+interface IReserveResult {
+  success: boolean;
+  reservationId: string;
+  reason?: string;
+}
+
 @Injectable()
 export class InventoryBrokerService {
   private readonly logger = new Logger(InventoryBrokerService.name);
   constructor(private readonly broker: BrokerService) {}
 
-  async getReservationStatus<T>(orderId: string): Promise<T> {
+  async getReservationStatus(orderId: string): Promise<IReservationStatus> {
     const topic = 'inventory.getReservationStatus';
     this.logger.log(`send ${topic} with orderId: ${orderId}`);
 
-    const result = await this.broker.send<T>({
+    const result = await this.broker.send<IReservationStatus>({
       topic,
       payload: { orderId },
     });
@@ -21,14 +32,14 @@ export class InventoryBrokerService {
     return result;
   }
 
-  async reservation<T>(
+  async reservation(
     orderId: string,
     validatedItems: { productId: string; qty: number }[],
-  ): Promise<T> {
+  ): Promise<IReserveResult> {
     const topic = 'inventory.reserve';
     this.logger.log(`send ${topic} with orderId: ${orderId}`);
 
-    const result = await this.broker.send<T>({
+    const result = await this.broker.send<IReserveResult>({
       topic,
       payload: {
         orderId,

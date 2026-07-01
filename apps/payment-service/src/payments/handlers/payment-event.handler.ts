@@ -1,7 +1,8 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PaymentsService } from '../payments.service';
 import { ChargeDto } from '../dto/charge.dto';
 import { BrokerService, BrokerMessage } from '@app/broker';
+import { EPaymentStatus } from '../constants/enum';
 
 @Injectable()
 export class PaymentEventHandler implements OnModuleInit {
@@ -24,5 +25,14 @@ export class PaymentEventHandler implements OnModuleInit {
   @BrokerMessage('payment.refund')
   async onRefund(data: { orderId: string }) {
     return this.paymentsService.refund(data.orderId);
+  }
+
+  @BrokerMessage('payment.checkStatus')
+  async checkStatus(data: { orderId: string }) {
+    const payment = await this.paymentsService.getPaymentByOrder(data.orderId);
+    if (payment.status !== EPaymentStatus.SUCCEEDED) {
+      throw new NotFoundException('Payment Not Succeeded.');
+    }
+    return { exists: true, transactionId: payment.id };
   }
 }

@@ -160,11 +160,7 @@ export class KafkaBrokerService
               : pattern.test(payload.topic);
 
           if (match) {
-            try {
-              await handler(payload);
-            } catch (err) {
-              console.error('Kafka handler error:', err);
-            }
+            await this.handleWithRetry(payload, handler);
           }
         }
       },
@@ -174,6 +170,17 @@ export class KafkaBrokerService
     this.logger.log(
       `[Kafka] consuming topics: ${this.pendingTopics.join(', ')}`,
     );
+  }
+
+  async ping(): Promise<void> {
+    if (!this.initialized) {
+      throw new Error('Kafka producer not initialized');
+    }
+
+    await this.producer.send({
+      topic: '__health_check',
+      messages: [{ value: 'ping' }],
+    });
   }
 
   private async createTopicIfNotExists(topic: string) {
@@ -192,14 +199,55 @@ export class KafkaBrokerService
     }
   }
 
-  async ping(): Promise<void> {
-    if (!this.initialized) {
-      throw new Error('Kafka producer not initialized');
+  private async handleWithRetry(
+    payload: EachMessagePayload,
+    handler: (payload: EachMessagePayload) => Promise<void>,
+    maxRetries = 3,
+  ) {
+    let attempt = 0;
+    while (attempt < maxRetries) {
+      try {
+        await handler(payload);
+        return;
+      } catch (err) {
+        attempt++;
+        this.logger.warn(
+          `[Kafka] handler error on topic ${payload.topic}, attempt ${attempt}/${maxRetries}: ${(err as Error).message}`,
+        );
+        if (attempt >= maxRetries) {
+          await this.sendToDlq(payload, err as Error);
+          return;
+        }
+        await this.sleep(attempt * 500); // 500ms, 1000ms, 1500ms
+      }
     }
+  }
 
-    await this.producer.send({
-      topic: '__health_check',
-      messages: [{ value: 'ping' }],
-    });
+  private async sendToDlq(payload: EachMessagePayload, error: Error) {
+    try {
+      await this.producer.send({
+        topic: `${payload.topic}.dlq`,
+        messages: [
+          {
+            key: payload.message.key,
+            value: payload.message.value,
+            headers: {
+              'x-original-topic': payload.topic,
+              'x-error': error.message,
+              'x-failed-at': new Date().toISOString(),
+            },
+          },
+        ],
+      });
+      this.logger.error(`[Kafka] moved to DLQ: ${payload.topic}.dlq`);
+    } catch (dlqErr) {
+      this.logger.error(
+        `[Kafka] DLQ publish FAILED, message lost: ${(dlqErr as Error).message}`,
+      );
+    }
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
