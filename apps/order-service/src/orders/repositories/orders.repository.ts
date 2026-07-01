@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import { Order } from '../entities/order.entity';
 import { EOrderStatus } from '../enums/order-status.enum';
 import { OrderItem } from '../entities/order-item.entity';
@@ -40,8 +40,11 @@ export class OrdersRepository {
     return this.repo.save(order);
   }
 
-  async findById(id: string): Promise<Order | null> {
-    return this.repo.findOne({ where: { id }, relations: { items: true } });
+  async findById(id: string, userId?: string): Promise<Order | null> {
+    return this.repo.findOne({
+      where: { id, userId },
+      relations: { items: true },
+    });
   }
 
   async findByUserId(userId: string, query: QueryOrderDto) {
@@ -62,6 +65,28 @@ export class OrdersRepository {
     const [orders, total] = await qb.take(query.limit).getManyAndCount();
 
     return { orders, total, page: query.page, limit: query.limit };
+  }
+
+  async updateStatusAtomic(
+    condition: { id: string; userId?: string; status: EOrderStatus },
+    updated: { status: EOrderStatus; failureReason?: string },
+    manager?: EntityManager,
+  ): Promise<boolean> {
+    const repo = manager ? manager.getRepository(Order) : this.repo;
+
+    const result = await repo.update(
+      {
+        id: condition.id,
+        ...(condition.userId && { userId: condition.userId }),
+        status: condition.status,
+      },
+      {
+        status: updated.status,
+        ...(updated.failureReason && { failureReason: updated.failureReason }),
+      },
+    );
+
+    return (result.affected ?? 0) > 0;
   }
 
   async updateStatus(

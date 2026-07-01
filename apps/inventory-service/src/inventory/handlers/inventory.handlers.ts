@@ -32,8 +32,14 @@ export class InventoryEventHandler implements OnModuleInit {
 
   // NATS — Order saga gọi để release khi order fail
   @BrokerMessage('inventory.release')
-  async onRelease(data: { items: { productId: string; qty: number }[] }) {
-    return this.inventoryService.release(data.items);
+  async onRelease(data: { reservationId: string }) {
+    return this.inventoryService.release(data.reservationId);
+  }
+
+  // NATS — Order saga gọi để check status reservate
+  @BrokerMessage('inventory.getReservationStatus')
+  async getReservateStatus(data: { orderId: string }) {
+    return this.inventoryService.getReservationStatus(data.orderId);
   }
 
   // Kafka — Payment service publish sau khi charge thành công

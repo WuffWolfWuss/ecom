@@ -1,15 +1,19 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
-import { BrokerService } from '@app/broker';
 import { EOrderStatus } from './enums/order-status.enum';
 import { OrdersRepository } from './repositories/orders.repository';
 import { PlaceOrderSaga } from './saga/place-order.saga';
 import { QueryOrderDto } from './dto/query-order.dto';
+import { InventoryBrokerService, OrderBrokerService } from './handlers';
+import { SagaState } from '@app/database';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 
 @Injectable()
 export class OrderService {
@@ -18,28 +22,48 @@ export class OrderService {
   constructor(
     private readonly repo: OrdersRepository,
     private readonly saga: PlaceOrderSaga,
-    private readonly broker: BrokerService,
+    private readonly orderBroker: OrderBrokerService,
+    private readonly inventoryBroker: InventoryBrokerService,
+    @InjectRepository(SagaState)
+    private readonly sagaRepo: Repository<SagaState>,
   ) {}
 
-  async placeOrder(dto: CreateOrderDto, userId?: string) {
-    // Tạo order với status PENDING trước để có orderId cho saga
+  async createOrder(dto: CreateOrderDto, userId: string) {
     const order = await this.repo.create({
-      userId: dto.userId,
-      total: 0, // chưa biết giá, saga sẽ validate
+      userId: userId,
+      total: 0,
       items: dto.items.map((i) => ({
         productId: i.productId,
-        productName: '', // saga sẽ điền vào
+        productName: '',
         price: 0,
         qty: i.qty,
         subtotal: 0,
       })),
     });
 
+    return { orderId: order.id, status: order.status };
+  }
+
+  async placeOrder(orderId: string, userId: string) {
+    const order = await this.repo.findById(orderId, userId);
+    if (!order) throw new NotFoundException('Order not found');
+
+    const result = await this.repo.updateStatusAtomic(
+      { id: orderId, userId, status: EOrderStatus.PENDING },
+      { status: EOrderStatus.PROCESSING },
+    );
+
+    if (!result) {
+      throw new BadRequestException(
+        `Order cannot be placed. May have been cancelled or already processing.`,
+      );
+    }
+
     try {
       const { validatedItems, total } = await this.saga.execute({
         orderId: order.id,
-        userId: dto.userId,
-        items: dto.items,
+        userId,
+        items: order.items,
       });
 
       // Saga thành công — update order với thông tin thật
@@ -50,10 +74,12 @@ export class OrderService {
       const confirmed = await this.repo.findById(order.id);
 
       // Publish event để notification service gửi email xác nhận
-      await this.broker.publish({
-        topic: 'order.confirmed',
-        payload: { orderId: order.id, userId, total, items: validatedItems },
-      });
+      await this.orderBroker.eventOrderConfirmed(
+        order.id,
+        userId,
+        total,
+        validatedItems,
+      );
 
       return confirmed;
     } catch (error) {
@@ -86,20 +112,17 @@ export class OrderService {
       throw new ForbiddenException('Only pending orders can be cancelled');
     }
 
-    await this.repo.updateStatus(id, EOrderStatus.CANCELLED);
+    await this.repo.updateStatusAtomic(
+      { id, userId, status: EOrderStatus.PENDING },
+      { status: EOrderStatus.CANCELLED },
+    );
 
-    // Release stock
-    await this.broker.send({
-      topic: 'inventory.release',
-      payload: {
-        items: order.items.map((i) => ({ productId: i.productId, qty: i.qty })),
-      },
-    });
+    const sagaState = await this.sagaRepo.findOne({ where: { id } });
+    if (sagaState?.reservationId) {
+      await this.inventoryBroker.release(sagaState.reservationId);
+    }
 
-    await this.broker.publish({
-      topic: 'order.cancelled',
-      payload: { orderId: id, userId },
-    });
+    await this.orderBroker.eventOrderCancel(id, userId);
 
     return { success: true };
   }

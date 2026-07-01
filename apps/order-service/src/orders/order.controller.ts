@@ -23,8 +23,14 @@ export class OrderController {
 
   @Post()
   @Roles('ADMIN', 'CUSTOMER')
-  placeOrder(@CurrentUser() userId: string, @Body() dto: CreateOrderDto) {
-    return this.ordersService.placeOrder({ ...dto, userId });
+  createOrder(@CurrentUser() userId: string, @Body() dto: CreateOrderDto) {
+    return this.ordersService.createOrder(dto, userId);
+  }
+
+  @Post()
+  @Roles('ADMIN', 'CUSTOMER')
+  placeOrder(@CurrentUser() userId: string, orderId: string) {
+    return this.ordersService.placeOrder(orderId, userId);
   }
 
   @Get()
