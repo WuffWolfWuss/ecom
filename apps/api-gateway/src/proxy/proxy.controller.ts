@@ -2,7 +2,6 @@
 import { All, Controller, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { ProxyService } from './proxy.service';
-import { Public } from '@app/common';
 import { SwaggerService } from './swagger';
 
 @Controller()
@@ -12,44 +11,36 @@ export class ProxyController {
     private readonly swagger: SwaggerService,
   ) {}
 
-  // Public routes — không cần auth
-  @Public()
   @All('auth/*path')
   proxyAuth(@Req() req: Request, @Res() res: Response) {
     return this.pipe(req, res, 'auth');
   }
 
-  @Public()
   @All('auth')
   proxyAuthRoot(@Req() req: Request, @Res() res: Response) {
     return this.pipe(req, res, 'auth');
   }
 
-  @Public()
   @All('products/*path')
   proxyProducts(@Req() req: Request, @Res() res: Response) {
     return this.pipe(req, res, 'products');
   }
 
-  @Public()
   @All('products')
   proxyProductsRoot(@Req() req: Request, @Res() res: Response) {
     return this.pipe(req, res, 'products');
   }
 
-  @Public()
   @All('categories/*path')
   proxyCategories(@Req() req: Request, @Res() res: Response) {
     return this.pipe(req, res, 'categories');
   }
 
-  @Public()
   @All('categories')
   proxyCategoriesRoot(@Req() req: Request, @Res() res: Response) {
     return this.pipe(req, res, 'categories');
   }
 
-  // Protected routes — cần JWT
   @All('users/*path')
   proxyUsers(@Req() req: Request, @Res() res: Response) {
     return this.pipe(req, res, 'users');
@@ -90,7 +81,6 @@ export class ProxyController {
     return this.pipe(req, res, 'inventory');
   }
 
-  @Public()
   @Post('docs/reload')
   async reloadDocs() {
     await this.swagger.buildMergedDoc();

@@ -9,8 +9,6 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthMiddleware } from './middleware/auth.middleware';
 import { OptionalAuthMiddleware } from './middleware/optional-auth.middleware';
 import { ProxyModule } from './proxy/proxy.module';
-import { APP_GUARD } from '@nestjs/core';
-import { InternalAuthGuard } from '@app/common';
 
 @Module({
   imports: [
@@ -25,12 +23,6 @@ import { InternalAuthGuard } from '@app/common';
       }),
     }),
     ProxyModule,
-  ],
-  providers: [
-    {
-      provide: APP_GUARD,
-      useClass: InternalAuthGuard,
-    },
   ],
 })
 export class AppModule implements NestModule {

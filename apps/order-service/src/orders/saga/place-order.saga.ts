@@ -163,12 +163,22 @@ export class PlaceOrderSaga {
 
         // Rollback ngược lại tất cả bước đã thành công
         for (const done of [...executedSteps].reverse()) {
-          await done
-            .compensate()
-            .catch((e) => console.error('Compensation failed:', e));
+          try {
+            await done.compensate();
+          } catch (e) {
+            saga.status = SagaStatus.FAILED;
+            saga.lastError = `Compensation failed at step ${done.name}: ${(e as Error).message}`;
+            this.logger.error(
+              `[SAGA] Order ${input.orderId} compensation failed at step ${done.name}: ${(e as Error).message}`,
+            );
+
+            break;
+          }
         }
 
-        saga.status = SagaStatus.COMPENSATED;
+        if (saga.status !== SagaStatus.FAILED) {
+          saga.status = SagaStatus.COMPENSATED;
+        }
         await this.sagaRepo.save(saga);
 
         throw error; // break loop
