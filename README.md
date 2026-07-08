@@ -24,25 +24,26 @@
 ## Description
 
 ### Services
-
-Service             Port      Database                    Responsibility
-api-gateway         3000         —                        JWT verify, rate limit, routing
-user-service        3001      PostgreSQL                  Auth, profile, JWT
-product-service     3002      MongoDB + Elasticsearch     Catalog, search
-inventory-service   3003      PostgreSQL                  Stock, reservation
-order-service       3004      PostgreSQL                  Cart, checkout, Saga
-payment-service     3005      PostgreSQL                  Charge, refund
-
+```text
+Service             Port      Database                    Responsibility  
+api-gateway         3000         —                        JWT verify, rate limit, routing  
+user-service        3001      PostgreSQL                  Auth, profile, JWT  
+product-service     3002      MongoDB + Elasticsearch     Catalog, search  
+inventory-service   3003      PostgreSQL                  Stock, reservation  
+order-service       3004      PostgreSQL                  Cart, checkout, Saga  
+payment-service     3005      PostgreSQL                  Charge, refund  
+```
 ### Tech Stack
-
+```text
 Framework: NestJS (monorepo)
 Message broker: Kafka (KRaft mode — no ZooKeeper) + NATS
 Databases: PostgreSQL, MongoDB, Redis, Elasticsearch
 Auth: JWT (RS256), RBAC (Admin / Customer / Producer)
 Container: Docker + Docker Compose
 API docs: Swagger (per service, api-gateway all service)
-
+```
 ### Project Structure
+```text
 ecommerce-microservices/
 ├── apps/
 │   ├── api-gateway/
@@ -59,14 +60,16 @@ ecommerce-microservices/
 │   └── postgres/
 │       └── init.sql     # Init databases for each service
 └── docker-compose.yml
-
+```
 
 ## Project setup
 ### Prerequisites
+```text
 Docker Desktop with WSL2 (Windows) or Docker Engine (Linux/macOS)
 Node.js 20+
 pnpm
 NestJS CLI
+```
 
 ### Start infrastructure
 ```bash
@@ -75,6 +78,7 @@ $ docker compose up -d
 ```
 
 ### Configure environment
+```text
 cp apps/user-service/.env.example        apps/user-service/.env
 cp apps/product-service/.env.example     apps/product-service/.env
 cp apps/inventory-service/.env.example   apps/inventory-service/.env
@@ -82,10 +86,13 @@ cp apps/order-service/.env.example       apps/order-service/.env
 cp apps/payment-service/.env.example     apps/payment-service/.env
 cp apps/notification-service/.env.example apps/notification-service/.env
 cp apps/api-gateway/.env.example         apps/api-gateway/.env
+```
 
 ### Run services
+```text
 pnpm run start:all
 pnpm run start:dev api-gateway
+```
 
 ### API Documentation
 Gateway  http://localhost:3000/docs
