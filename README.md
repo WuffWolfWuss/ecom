@@ -23,52 +23,74 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+### Services
+
+Service             Port      Database                    Responsibility
+api-gateway         3000         —                        JWT verify, rate limit, routing
+user-service        3001      PostgreSQL                  Auth, profile, JWT
+product-service     3002      MongoDB + Elasticsearch     Catalog, search
+inventory-service   3003      PostgreSQL                  Stock, reservation
+order-service       3004      PostgreSQL                  Cart, checkout, Saga
+payment-service     3005      PostgreSQL                  Charge, refund
+
+### Tech Stack
+
+Framework: NestJS (monorepo)
+Message broker: Kafka (KRaft mode — no ZooKeeper) + NATS
+Databases: PostgreSQL, MongoDB, Redis, Elasticsearch
+Auth: JWT (RS256), RBAC (Admin / Customer / Producer)
+Container: Docker + Docker Compose
+API docs: Swagger (per service, api-gateway all service)
+
+### Project Structure
+ecommerce-microservices/
+├── apps/
+│   ├── api-gateway/
+│   ├── user-service/
+│   ├── product-service/
+│   ├── inventory-service/
+│   ├── order-service/
+│   ├── payment-service/
+│   └── notification-service/
+├── libs/
+│   ├── common/          # Shared guards, decorators (@Public, @Roles, @CurrentUser)
+│   └── kafka/           # BrokerService (Kafka + NATS wrapper)
+├── docker/
+│   └── postgres/
+│       └── init.sql     # Init databases for each service
+└── docker-compose.yml
+
 
 ## Project setup
+### Prerequisites
+Docker Desktop with WSL2 (Windows) or Docker Engine (Linux/macOS)
+Node.js 20+
+pnpm
+NestJS CLI
 
+### Start infrastructure
 ```bash
 $ pnpm install
+$ docker compose up -d
 ```
 
-## Compile and run the project
+### Configure environment
+cp apps/user-service/.env.example        apps/user-service/.env
+cp apps/product-service/.env.example     apps/product-service/.env
+cp apps/inventory-service/.env.example   apps/inventory-service/.env
+cp apps/order-service/.env.example       apps/order-service/.env
+cp apps/payment-service/.env.example     apps/payment-service/.env
+cp apps/notification-service/.env.example apps/notification-service/.env
+cp apps/api-gateway/.env.example         apps/api-gateway/.env
 
-```bash
-# development
-$ pnpm run start
+### Run services
+pnpm run start:all
+pnpm run start:dev api-gateway
 
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
-```
+### API Documentation
+Gateway  http://localhost:3000/docs
 
 ## Run tests
-
-```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
 
 ## Resources
 
