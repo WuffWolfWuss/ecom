@@ -36,6 +36,12 @@ export class Product implements IProduct {
 
   @Prop(String)
   createdBy: string;
+
+  @Prop({ default: 0 })
+  availableStock: number;
+
+  @Prop({ default: null })
+  stockUpdatedAt: Date;
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

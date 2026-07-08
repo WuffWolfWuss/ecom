@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { InventoryRepository } from './repositories/inventory.repository';
 import { ReservationRepository } from './repositories/reservation.repository';
+import { InventoryBrokerService } from './handlers/inventory.broker';
 
 @Injectable()
 export class InventoryService {
@@ -13,6 +14,7 @@ export class InventoryService {
   constructor(
     private readonly repo: InventoryRepository,
     private readonly repoReservate: ReservationRepository,
+    private readonly inventoryBroker: InventoryBrokerService,
   ) {}
 
   async getStock(productId: string) {
@@ -33,6 +35,8 @@ export class InventoryService {
     } else {
       inv = await this.repo.addStock(productId, quantity);
     }
+    this.inventoryBroker.stockChanged([inv]);
+
     return {
       productId: inv?.productId,
       stock: inv?.stock,
@@ -43,6 +47,10 @@ export class InventoryService {
   async reserve(orderId: string, items: { productId: string; qty: number }[]) {
     try {
       const reservationId = await this.repo.reserve(orderId, items);
+      const itemsChanged = await this.repo.findByProductIds(
+        items.map((v) => v.productId),
+      );
+      this.inventoryBroker.stockChanged(itemsChanged);
       return { success: true, reservationId };
     } catch (error) {
       throw new BadRequestException(error.message);
@@ -52,12 +60,20 @@ export class InventoryService {
   async confirmReservation(orderId: string) {
     this.logger.log(`confirmReservation Order Id: ${orderId}`);
     // const items = await this.orderClient.getOrderItems(orderId);
-    await this.repo.confirmReservation(orderId);
+    const items = await this.repo.confirmReservation(orderId);
+    const itemsChanged = await this.repo.findByProductIds(
+      items?.map((v) => v.productId),
+    );
+    this.inventoryBroker.stockChanged(itemsChanged);
     return { success: true };
   }
 
   async release(reservationId: string) {
-    await this.repo.release(reservationId);
+    const items = await this.repo.release(reservationId);
+    const itemsChanged = await this.repo.findByProductIds(
+      items?.map((v) => v.productId),
+    );
+    this.inventoryBroker.stockChanged(itemsChanged);
     return { success: true };
   }
 

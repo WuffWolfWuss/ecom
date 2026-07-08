@@ -58,3 +58,14 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # textfile
 *.txt
+
+
+# next.js
+/apps/web/.next/
+/apps/web/node_modules/
+
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+

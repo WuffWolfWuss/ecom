@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ProductsService } from '../products.service';
-import { BrokerMessage, BrokerService } from '@app/broker';
+import { BrokerEvent, BrokerMessage, BrokerService } from '@app/broker';
 
 @Injectable()
 export class ProductEventHandler implements OnModuleInit {
@@ -19,5 +19,21 @@ export class ProductEventHandler implements OnModuleInit {
     items: { productId: string; qty: number }[];
   }) {
     return this.productsService.validateProducts(data.items);
+  }
+
+  @BrokerEvent('inventory.stock-changed')
+  async onStockChanged(
+    payload: { productId: string; availableStock: number }[],
+  ) {
+    for (const product of payload) {
+      await this.productsService.update(
+        product.productId,
+        {
+          availableStock: product.availableStock,
+          stockUpdatedAt: new Date(),
+        },
+        'system',
+      );
+    }
   }
 }
