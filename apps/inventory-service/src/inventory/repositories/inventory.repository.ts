@@ -19,11 +19,17 @@ export class InventoryRepository {
     private readonly dataSource: DataSource,
   ) {}
 
-  async findByProductId(productId: string): Promise<Inventory | null> {
-    return this.repo.findOne({ where: { productId } });
+  async findByProductId(productId: string): Promise<Inventory> {
+    const result = await this.repo.findOne({ where: { productId } });
+    if (!result) {
+      throw new NotFoundException('item not found');
+    }
+    return result;
   }
 
-  async findByProductIds(productIds: string[]): Promise<Inventory[]> {
+  async findByProductIds(productIds?: string[]): Promise<Inventory[]> {
+    if (!productIds?.length)
+      throw new BadRequestException(`Invalid query request.`);
     return this.repo.find({
       where: productIds.map((id) => ({ productId: id })),
     });
@@ -33,10 +39,7 @@ export class InventoryRepository {
     return this.repo.save(this.repo.create({ productId, stock }));
   }
 
-  async addStock(
-    productId: string,
-    quantity: number,
-  ): Promise<Inventory | null> {
+  async addStock(productId: string, quantity: number): Promise<Inventory> {
     await this.repo.increment({ productId }, 'stock', quantity);
     return this.findByProductId(productId);
   }
@@ -85,8 +88,10 @@ export class InventoryRepository {
   }
 
   // Confirm reserve → trừ stock thật sau khi payment thành công
-  async confirmReservation(orderId: string): Promise<void> {
-    await this.dataSource.transaction(async (manager) => {
+  async confirmReservation(
+    orderId: string,
+  ): Promise<{ productId: string; qty: number }[] | undefined> {
+    return this.dataSource.transaction(async (manager) => {
       const reservation = await manager.findOne(Reservation, {
         where: { orderId },
         lock: { mode: 'pessimistic_write' },
@@ -117,12 +122,16 @@ export class InventoryRepository {
 
       reservation.status = ReservationStatus.CONFIRMED;
       await manager.save(reservation);
+
+      return reservation.items;
     });
   }
 
   // Release reserve → hoàn lại khi order fail/cancel
-  async release(reservationId: string): Promise<void> {
-    await this.dataSource.transaction(async (manager) => {
+  async release(
+    reservationId: string,
+  ): Promise<{ productId: string; qty: number }[] | undefined> {
+    return this.dataSource.transaction(async (manager) => {
       const reservation = await manager.findOne(Reservation, {
         where: { id: reservationId },
         lock: { mode: 'pessimistic_write' },
@@ -143,6 +152,8 @@ export class InventoryRepository {
           item.qty,
         );
       }
+
+      return reservation.items;
     });
   }
 }

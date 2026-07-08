@@ -7,6 +7,7 @@ import { InventoryEventHandler } from './handlers/inventory.handlers';
 import { InventoryRepository } from './repositories/inventory.repository';
 import { Reservation } from './entities/reservation.entity';
 import { ReservationRepository } from './repositories/reservation.repository';
+import { InventoryBrokerService } from './handlers/inventory.broker';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Inventory, Reservation])],
@@ -16,6 +17,7 @@ import { ReservationRepository } from './repositories/reservation.repository';
     InventoryEventHandler,
     InventoryRepository,
     ReservationRepository,
+    InventoryBrokerService,
   ],
 })
 export class InventoryModule {}

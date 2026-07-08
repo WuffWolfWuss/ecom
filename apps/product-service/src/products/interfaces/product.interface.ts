@@ -20,4 +20,8 @@ export interface IProduct {
   soldCount?: number;
 
   createdBy: string;
+
+  availableStock?: number;
+
+  stockUpdatedAt?: Date;
 }
