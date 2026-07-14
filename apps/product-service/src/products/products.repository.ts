@@ -55,7 +55,9 @@ export class ProductsRepository {
     id: string,
     data: Partial<Product>,
   ): Promise<ProductDocument | null> {
-    return this.model.findByIdAndUpdate(id, data, { new: true }).lean();
+    return this.model
+      .findByIdAndUpdate(id, data, { returnDocument: 'after' })
+      .lean();
   }
 
   async delete(id: string): Promise<void> {

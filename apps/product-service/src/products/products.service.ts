@@ -10,6 +10,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
 import { BrokerService } from '@app/broker';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { IProduct } from './interfaces/product.interface';
 
 @Injectable()
 export class ProductsService {
@@ -50,10 +51,10 @@ export class ProductsService {
     return this.repo.findMany(query);
   }
 
-  async update(id: string, dto: UpdateProductDto, userId: string) {
+  async update(id: string, dto: Partial<IProduct>, userId: string) {
     const product = await this.repo.findById(id);
     if (!product) throw new NotFoundException('Product not found');
-    if (product.createdBy !== userId)
+    if (userId !== 'system' && product.createdBy !== userId)
       throw new ForbiddenException('Access denied');
 
     const updateProduct = await this.repo.update(id, dto);

@@ -9,7 +9,7 @@
     "build": "nest build",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "start": "nest start",
-    "start:all": "concurrently --names \"USER,PRODUCT,PAY\" --prefix-colors \"blue,green,yellow,magenta,cyan,red\" \"pnpm start:dev user-service\" \"pnpm start:dev product-service\" \"pnpm start:dev payment-service\"",
+    "start:all": "concurrently --names \"USER,PRODUCT,INV,ORDER,PAY\" --prefix-colors \"blue,green,yellow,magenta,cyan,red\" \"pnpm start:dev user-service\" \"pnpm start:dev product-service\" \"pnpm start:dev inventory-service\" \"pnpm start:dev order-service\" \"pnpm start:dev payment-service\"",
     "start:dev": "nest start --builder swc --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/apps/ecommerce-microservices/main",
