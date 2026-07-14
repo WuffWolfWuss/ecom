@@ -1,3 +1,4 @@
+import { IProduct } from '@/lib/interfaces/product';
 import ProductCard from './product-card';
 
 const ProductList = ({
@@ -5,7 +6,7 @@ const ProductList = ({
   title,
   limit,
 }: {
-  data: any[];
+  data: IProduct[];
   title: string;
   limit?: number;
 }) => {
@@ -16,8 +17,8 @@ const ProductList = ({
       <h2 className="h2-bold mb-4">{title}</h2>
       {data.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4">
-          {dataList.map((product: any) => (
-            <ProductCard key={product.slug} product={product} />
+          {dataList.map((product) => (
+            <ProductCard key={product._id} product={product} />
           ))}
         </div>
       ) : (

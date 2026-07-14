@@ -9,12 +9,13 @@ import {
   CardHeader,
   CardTitle,
 } from '../../card';
+import { IProduct } from '@/lib/interfaces/product';
 
-const ProductCard = ({ product }: { product: any }) => {
+const ProductCard = ({ product }: { product: IProduct }) => {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="p-0 items-center">
-        <Link href={`/product/${product.slug}`}></Link>
+        <Link href={`/product/${product._id}`}></Link>
         <Image
           src={product.images[0] || '/images/sample-products/p1-1.jpg'}
           alt={product.name}
@@ -24,13 +25,13 @@ const ProductCard = ({ product }: { product: any }) => {
         ></Image>
       </CardHeader>
       <CardContent className="p-4 grid gap-4">
-        <div className="text-xs">{product.brand}</div>
-        <Link href={`/product/${product.slug}`}>
+        <div className="text-xs">{product.name}</div>
+        <Link href={`/product/${product._id}`}>
           <h2 className="text-sm font-medium">{product.name}</h2>
         </Link>
         <div className="flex-between gap-4">
-          <p>{product.rating}</p>
-          {product.stock > 0 ? (
+          <p>{product.soldCount}</p>
+          {product.availableStock > 0 ? (
             <p className="font-bold">{product.price}</p>
           ) : (
             <p>out of stocks</p>
