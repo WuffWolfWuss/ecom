@@ -12,7 +12,7 @@ import {
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
-import { QueryProductDto } from './dto/query-product.dto';
+import { FindOneParamsDto, QueryProductDto } from './dto/query-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { CurrentUser, Public } from '@app/common';
 import { Roles } from '@app/common/decorators/roles.decorator';
@@ -37,8 +37,8 @@ export class ProductsController {
 
   @Public()
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.productsService.findOne(id);
+  findOne(@Param() params: FindOneParamsDto) {
+    return this.productsService.findOne(params.id);
   }
 
   @Put(':id')

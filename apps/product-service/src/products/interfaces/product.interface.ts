@@ -22,6 +22,4 @@ export interface IProduct {
   createdBy: string;
 
   availableStock?: number;
-
-  stockUpdatedAt?: Date;
 }

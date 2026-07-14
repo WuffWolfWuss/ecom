@@ -27,9 +27,8 @@ import { ProxyModule } from './proxy/proxy.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Auth
     consumer
-      .apply(AuthMiddleware)
+      .apply(OptionalAuthMiddleware)
       .forRoutes(
         { path: 'users/*path', method: RequestMethod.ALL },
         { path: 'orders', method: RequestMethod.ALL },
@@ -43,8 +42,5 @@ export class AppModule implements NestModule {
         { path: 'categories', method: RequestMethod.ALL },
         { path: 'categories/*path', method: RequestMethod.ALL },
       );
-
-    // Routes public
-    consumer.apply(OptionalAuthMiddleware).forRoutes();
   }
 }
