@@ -5,6 +5,8 @@ import {
   IsMongoId,
   Min,
   Max,
+  MinLength,
+  IsNotEmpty,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
@@ -57,4 +59,11 @@ export class QueryProductDto {
   @IsString()
   @IsOptional()
   sortOrder: 'asc' | 'desc' = 'desc';
+}
+
+export class FindOneParamsDto {
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(10)
+  id: string;
 }

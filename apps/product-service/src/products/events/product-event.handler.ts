@@ -30,7 +30,6 @@ export class ProductEventHandler implements OnModuleInit {
         product.productId,
         {
           availableStock: product.availableStock,
-          stockUpdatedAt: new Date(),
         },
         'system',
       );

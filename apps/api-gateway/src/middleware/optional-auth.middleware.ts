@@ -13,6 +13,7 @@ export class OptionalAuthMiddleware implements NestMiddleware {
       try {
         const payload = this.jwtService.verify(authHeader.split(' ')[1]);
         req.headers['x-user-id'] = payload.sub;
+        req.headers['x-user-role'] = payload.role;
       } catch {} // ignore invalid token cho public routes
     }
     next();
