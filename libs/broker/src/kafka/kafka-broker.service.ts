@@ -148,7 +148,7 @@ export class KafkaBrokerService
 
     await this.consumer.subscribe({
       topics: this.pendingTopics, // subscribe tất cả một lần
-      fromBeginning: false, // chỉ đọc event mới — xem lý do bên dưới
+      fromBeginning: false,
     });
 
     await this.consumer.run({

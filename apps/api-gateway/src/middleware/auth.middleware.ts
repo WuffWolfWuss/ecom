@@ -19,7 +19,7 @@ export class AuthMiddleware implements NestMiddleware {
     const authHeader = req.headers.authorization;
 
     if (!authHeader?.startsWith('Bearer ')) {
-      // GET request — cho qua, service tự quyết định qua @Public()
+      // GET request — service check via @Public()
       if (req.method === 'GET') return next();
       throw new UnauthorizedException('Missing token');
     }
@@ -29,7 +29,6 @@ export class AuthMiddleware implements NestMiddleware {
       const payload = this.jwtService.verify(token);
       console.log('Verify Payload: ', payload);
 
-      // Forward userId xuống service qua header
       req.headers['x-user-id'] = payload.sub;
       req.headers['x-user-role'] = payload.role;
       next();

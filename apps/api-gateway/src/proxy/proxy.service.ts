@@ -34,7 +34,6 @@ export class ProxyService {
       url,
       headers: {
         'content-type': req.headers['content-type'] || 'application/json',
-        // Forward các header auth đã được Gateway gắn vào
         ...(req.headers['x-user-id'] && {
           'x-user-id': req.headers['x-user-id'],
         }),
@@ -42,11 +41,8 @@ export class ProxyService {
           'x-user-role': req.headers['x-user-role'],
         }),
       },
-      // Forward body
       data: req.body,
-      // Không throw error khi service trả về 4xx/5xx
-      // để Gateway giữ nguyên status code từ service
-      validateStatus: () => true,
+      validateStatus: () => true, // keep status code từ service
     };
 
     try {

@@ -59,7 +59,6 @@ export class SwaggerService {
 
         // Merge paths
         for (const [path, methods] of Object.entries(data.paths || {})) {
-          // Gắn security vào từng operation trong path
           const pathItem = methods as Record<string, any>;
           for (const method of Object.values(pathItem)) {
             if (typeof method === 'object' && method !== null) {
@@ -69,7 +68,7 @@ export class SwaggerService {
           base.paths[path] = methods;
         }
 
-        // Merge schemas — tránh collision bằng cách prefix tên service
+        // Merge schemas
         for (const [name, schema] of Object.entries(
           data.components?.schemas || {},
         )) {
@@ -87,7 +86,7 @@ export class SwaggerService {
       }
     }
 
-    // Thêm Bearer auth
+    // Bearer auth
     base.components.securitySchemes = {
       bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
     };

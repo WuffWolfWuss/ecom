@@ -57,8 +57,7 @@ export class PlaceOrderSaga {
 
     const steps: SagaStep[] = [
       {
-        name: ESagaStep.VALIDATE_PRODUCT,
-        // Bước 1: validate product + lấy giá từ Product service
+        name: ESagaStep.VALIDATE_PRODUCT, // Bước 1: validate product + lấy giá từ Product service
         execute: async () => {
           this.logger.log(
             `[SAGA] Order ${input.orderId} stepValidateProduct. Items: ${JSON.stringify(input.items.map((v) => v.productId))}`,
@@ -70,8 +69,7 @@ export class PlaceOrderSaga {
         compensate: async () => {}, // không cần rollback, chỉ là đọc data
       },
       {
-        name: ESagaStep.RESERVE_INVENTORY,
-        // Bước 2: reserve stock từ Inventory service
+        name: ESagaStep.RESERVE_INVENTORY, // Bước 2: reserve stock từ Inventory service
         execute: async () => {
           this.logger.log(`[SAGA] Order ${input.orderId} stepItemReserve`);
           const result = await this.inventoryBroker.reservation(
@@ -97,8 +95,7 @@ export class PlaceOrderSaga {
         },
       },
       {
-        name: ESagaStep.CHARGE_PAYMENT,
-        // Bước 3: charge tiền qua Payment service
+        name: ESagaStep.CHARGE_PAYMENT, // Bước 3: charge tiền qua Payment service
         execute: async () => {
           this.logger.log(`[SAGA] Order ${input.orderId} stepPayment`);
           const total = validatedItems.reduce((sum, i) => sum + i.subtotal, 0);
@@ -146,7 +143,7 @@ export class PlaceOrderSaga {
             }
           } catch (verifyError) {
             saga.lastError = `Verify failed: ${(verifyError as Error).message}`;
-            saga.verifyRetryCount = (saga.verifyRetryCount ?? 0) + 1;
+            saga.verifyRetryCount = (saga.verifyRetryCount ?? 0) + 1; //pre-seed, tell SagaReconciliationService that this have already been retry atleast 1 time
             await this.sagaRepo.save(saga);
             throw error; // break loop
           }

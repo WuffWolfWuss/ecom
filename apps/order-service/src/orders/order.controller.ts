@@ -2,11 +2,11 @@ import {
   Controller,
   Get,
   Post,
-  Patch,
-  Body,
   Param,
   Query,
   Req,
+  Body,
+  Patch,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -27,9 +27,9 @@ export class OrderController {
     return this.ordersService.createOrder(dto, userId);
   }
 
-  @Post()
+  @Post(':id/confirm')
   @Roles('ADMIN', 'CUSTOMER')
-  placeOrder(@CurrentUser() userId: string, orderId: string) {
+  placeOrder(@CurrentUser() userId: string, @Param('id') orderId: string) {
     return this.ordersService.placeOrder(orderId, userId);
   }
 
