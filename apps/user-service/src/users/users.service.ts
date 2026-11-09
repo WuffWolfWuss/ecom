@@ -7,7 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
-import { CreateUserDto } from './dto/user.dto';
+import { ICreateUser } from './interfaces/user.interface';
 import { UsersPublisher } from './messaging/publishers/users.publisher';
 
 @Injectable()
@@ -18,7 +18,7 @@ export class UsersService {
     private readonly publisher: UsersPublisher,
   ) {}
 
-  async create(dto: CreateUserDto): Promise<User> {
+  async create(dto: ICreateUser): Promise<User> {
     const exists = await this.userRepo.findOne({ where: { email: dto.email } });
     if (exists) throw new ConflictException('Email already in use');
 

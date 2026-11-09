@@ -1,12 +1,19 @@
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, Reflector } from '@nestjs/core';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { InternalAuthGuard, RolesGuard } from '@app/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app: INestApplication<any> = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalGuards(
+    new InternalAuthGuard(app.get(Reflector), app.get(ConfigService)),
+    new RolesGuard(app.get(Reflector)),
+  );
 
   const config = new DocumentBuilder()
     .setTitle('User Service')
@@ -15,8 +22,9 @@ async function bootstrap() {
     .build();
   SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, config));
 
-  await app.listen(3001);
-  console.log('User service running on http://localhost:3001');
-  console.log('Swagger docs: http://localhost:3001/docs');
+  const port = process.env.PORT ?? 3001;
+  await app.listen(port);
+  console.log(`User service running on http://localhost:${port}`);
+  console.log(`Swagger docs: http://localhost:${port}/docs`);
 }
 bootstrap();

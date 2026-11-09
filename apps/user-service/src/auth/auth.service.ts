@@ -1,7 +1,11 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { CreateUserDto } from '../users/dto/user.dto';
+import { RegisterDto } from './dto/register.dto';
 import { UsersService } from '../users/users.service';
 import { UsersClient } from './messaging/clients/users.client';
 import { EUserRole } from '../users/enums/user-role.enum';
@@ -14,8 +18,11 @@ export class AuthService {
     private readonly usersClient: UsersClient,
   ) {}
 
-  async register(dto: CreateUserDto) {
-    const user = await this.usersService.create(dto);
+  async register(dto: RegisterDto) {
+    const user = await this.usersService.create({
+      ...dto,
+      role: EUserRole.CUSTOMER,
+    });
     return this.signToken(user.id, user.email, user.role);
   }
 
@@ -25,6 +32,7 @@ export class AuthService {
 
     const match = await bcrypt.compare(password, user.password);
     if (!match) throw new UnauthorizedException('Invalid credentials');
+    if (!user.isActive) throw new ForbiddenException('Account is disabled');
 
     const respond = await this.usersClient.notifyLogin(user.email);
 

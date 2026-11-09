@@ -7,12 +7,14 @@ import {
   MongooseHealthIndicator,
   HealthIndicatorFunction,
 } from '@nestjs/terminus';
-import { Public } from '@app/common';
+import { Public } from '../decorators/public.decorator';
+import { AllowDirectAccess } from '../decorators/allow-direct-access.decorator';
 import { HEALTH_MODULE_OPTIONS, type HealthModuleOptions } from './constant';
 import { KafkaHealthIndicator } from './indicator/kafka.health';
 import { NatsHealthIndicator } from './indicator/nats.health';
 
 @Public()
+@AllowDirectAccess()
 @Controller('health')
 export class HealthController {
   constructor(
