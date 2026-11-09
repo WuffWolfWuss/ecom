@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Redis from 'ioredis';
 import { REDIS_SUBSCRIBER } from '@app/redis';
-import { SagaState, SagaStatus } from '@app/database';
+import { SagaState, SagaStatus } from '../entities/saga-state.entity';
 import { ESagaStep } from '../enums/saga-steps.enum';
 import { PlaceOrderSaga } from './place-order.saga';
 
@@ -19,7 +19,6 @@ export class SagaTimeoutListener implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // DB index 0 mặc định
     await this.subscriber.subscribe('__keyevent@0__:expired');
 
     this.subscriber.on('message', (_channel, expiredKey) => {
@@ -36,7 +35,7 @@ export class SagaTimeoutListener implements OnModuleInit {
   private async handleExpired(orderId: string) {
     const sagaState = await this.sagaRepo.findOne({ where: { id: orderId } });
 
-    // Saga đã COMPLETED hoặc đã compensate rồi qua flow fail khác → bỏ qua
+    // Saga đã COMPLETED hoặc đã compensate rồi qua flow fail khác
     if (!sagaState || sagaState.status !== SagaStatus.IN_PROGRESS) return;
     if (sagaState.currentStep !== ESagaStep.RESERVE_INVENTORY.toString())
       return;

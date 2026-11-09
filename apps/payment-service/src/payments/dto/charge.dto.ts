@@ -1,6 +1,6 @@
 import { IsString, IsNumber, IsEnum, IsOptional, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { EPaymentMethod } from '../constants/enum';
+import { EPaymentMethod } from '../enums/payment.enum';
 
 export class ChargeDto {
   @ApiProperty()

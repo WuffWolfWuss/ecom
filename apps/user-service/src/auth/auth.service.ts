@@ -3,15 +3,15 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { CreateUserDto } from '../users/dto/user.dto';
 import { UsersService } from '../users/users.service';
-import { BrokerService } from '@app/broker';
-import { EUserRole } from '../users/interfaces/user';
+import { UsersClient } from './messaging/clients/users.client';
+import { EUserRole } from '../users/enums/user-role.enum';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
-    private readonly broker: BrokerService,
+    private readonly usersClient: UsersClient,
   ) {}
 
   async register(dto: CreateUserDto) {
@@ -26,10 +26,7 @@ export class AuthService {
     const match = await bcrypt.compare(password, user.password);
     if (!match) throw new UnauthorizedException('Invalid credentials');
 
-    const respond = await this.broker.send({
-      topic: 'user.login',
-      payload: { email: user.email },
-    });
+    const respond = await this.usersClient.notifyLogin(user.email);
 
     console.log('MESSAGE RECEIVED - Response: ', JSON.stringify(respond));
     return this.signToken(user.id, user.email, user.role);

@@ -5,7 +5,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { EPaymentMethod, EPaymentStatus } from '../constants/enum';
+import { EPaymentMethod, EPaymentStatus } from '../enums/payment.enum';
 
 @Entity('payments')
 export class Payment {

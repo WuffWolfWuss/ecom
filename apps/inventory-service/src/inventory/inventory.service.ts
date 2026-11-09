@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InventoryRepository } from './repositories/inventory.repository';
 import { ReservationRepository } from './repositories/reservation.repository';
-import { InventoryBrokerService } from './handlers/inventory.broker';
+import { InventoryPublisher } from './messaging/publishers/inventory.publisher';
 
 @Injectable()
 export class InventoryService {
@@ -14,7 +14,7 @@ export class InventoryService {
   constructor(
     private readonly repo: InventoryRepository,
     private readonly repoReservate: ReservationRepository,
-    private readonly inventoryBroker: InventoryBrokerService,
+    private readonly inventoryPublisher: InventoryPublisher,
   ) {}
 
   async getStock(productId: string) {
@@ -35,7 +35,7 @@ export class InventoryService {
     } else {
       inv = await this.repo.addStock(productId, quantity);
     }
-    this.inventoryBroker.stockChanged([inv]);
+    this.inventoryPublisher.stockChanged([inv]);
 
     return {
       productId: inv?.productId,
@@ -50,7 +50,7 @@ export class InventoryService {
       const itemsChanged = await this.repo.findByProductIds(
         items.map((v) => v.productId),
       );
-      this.inventoryBroker.stockChanged(itemsChanged);
+      this.inventoryPublisher.stockChanged(itemsChanged);
       return { success: true, reservationId };
     } catch (error) {
       throw new BadRequestException(error.message);
@@ -64,7 +64,7 @@ export class InventoryService {
     const itemsChanged = await this.repo.findByProductIds(
       items?.map((v) => v.productId),
     );
-    this.inventoryBroker.stockChanged(itemsChanged);
+    this.inventoryPublisher.stockChanged(itemsChanged);
     return { success: true };
   }
 
@@ -73,7 +73,7 @@ export class InventoryService {
     const itemsChanged = await this.repo.findByProductIds(
       items?.map((v) => v.productId),
     );
-    this.inventoryBroker.stockChanged(itemsChanged);
+    this.inventoryPublisher.stockChanged(itemsChanged);
     return { success: true };
   }
 

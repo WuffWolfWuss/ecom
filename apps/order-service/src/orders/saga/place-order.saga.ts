@@ -1,18 +1,18 @@
 import { AmbiguousRpcException } from '@app/broker';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { IProductValidateResult } from '../interfaces/order-item.interface';
+import { IProductValidateResult } from '@app/contracts';
 import { InjectRepository } from '@nestjs/typeorm';
-import { SagaState, SagaStatus } from '@app/database';
+import { SagaState, SagaStatus } from '../entities/saga-state.entity';
 import { REDIS_CLIENT } from '@app/redis';
 import Redis from 'ioredis';
 import { Repository } from 'typeorm';
 import { ESagaStep } from '../enums/saga-steps.enum';
 import { IVerifySagaResult } from '../interfaces/order.interface';
 import {
-  InventoryBrokerService,
-  PaymentBrokerService,
-  ProductBrokerService,
-} from '../handlers';
+  InventoryClient,
+  PaymentClient,
+  ProductClient,
+} from '../messaging/clients';
 
 const RESERVATION_TTL_SECONDS = 15 * 60;
 
@@ -32,9 +32,9 @@ interface InputOrder {
 export class PlaceOrderSaga {
   private readonly logger = new Logger(PlaceOrderSaga.name);
   constructor(
-    private readonly inventoryBroker: InventoryBrokerService,
-    private readonly paymentBroker: PaymentBrokerService,
-    private readonly productBroker: ProductBrokerService,
+    private readonly inventoryClient: InventoryClient,
+    private readonly paymentClient: PaymentClient,
+    private readonly productClient: ProductClient,
     @InjectRepository(SagaState)
     private readonly sagaRepo: Repository<SagaState>,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
@@ -57,24 +57,22 @@ export class PlaceOrderSaga {
 
     const steps: SagaStep[] = [
       {
-        name: ESagaStep.VALIDATE_PRODUCT,
-        // Bước 1: validate product + lấy giá từ Product service
+        name: ESagaStep.VALIDATE_PRODUCT, // Bước 1: validate product + lấy giá từ Product service
         execute: async () => {
           this.logger.log(
             `[SAGA] Order ${input.orderId} stepValidateProduct. Items: ${JSON.stringify(input.items.map((v) => v.productId))}`,
           );
-          validatedItems = await this.productBroker.productValidate(
+          validatedItems = await this.productClient.productValidate(
             input.items,
           );
         },
         compensate: async () => {}, // không cần rollback, chỉ là đọc data
       },
       {
-        name: ESagaStep.RESERVE_INVENTORY,
-        // Bước 2: reserve stock từ Inventory service
+        name: ESagaStep.RESERVE_INVENTORY, // Bước 2: reserve stock từ Inventory service
         execute: async () => {
           this.logger.log(`[SAGA] Order ${input.orderId} stepItemReserve`);
-          const result = await this.inventoryBroker.reservation(
+          const result = await this.inventoryClient.reservation(
             input.orderId,
             validatedItems,
           );
@@ -93,16 +91,15 @@ export class PlaceOrderSaga {
           this.logger.log(
             `[SAGA] Order ${input.orderId} Failed. stepIntemReservceConpensate...`,
           );
-          await this.inventoryBroker.release(saga.reservationId);
+          await this.inventoryClient.release(saga.reservationId);
         },
       },
       {
-        name: ESagaStep.CHARGE_PAYMENT,
-        // Bước 3: charge tiền qua Payment service
+        name: ESagaStep.CHARGE_PAYMENT, // Bước 3: charge tiền qua Payment service
         execute: async () => {
           this.logger.log(`[SAGA] Order ${input.orderId} stepPayment`);
           const total = validatedItems.reduce((sum, i) => sum + i.subtotal, 0);
-          const result = await this.paymentBroker.paymentCharge(
+          const result = await this.paymentClient.paymentCharge(
             input.orderId,
             input.userId,
             total,
@@ -115,7 +112,7 @@ export class PlaceOrderSaga {
           this.logger.log(
             `[SAGA] Order ${input.orderId} Failed. stepPaymentConpensate...`,
           );
-          await this.paymentBroker.paymentRefund(input.orderId);
+          await this.paymentClient.paymentRefund(input.orderId);
         },
       },
     ];
@@ -146,7 +143,7 @@ export class PlaceOrderSaga {
             }
           } catch (verifyError) {
             saga.lastError = `Verify failed: ${(verifyError as Error).message}`;
-            saga.verifyRetryCount = (saga.verifyRetryCount ?? 0) + 1;
+            saga.verifyRetryCount = (saga.verifyRetryCount ?? 0) + 1; //pre-seed, tell SagaReconciliationService that this have already been retry atleast 1 time
             await this.sagaRepo.save(saga);
             throw error; // break loop
           }
@@ -199,11 +196,11 @@ export class PlaceOrderSaga {
     orderId: string,
   ): Promise<IVerifySagaResult> {
     if (step === ESagaStep.RESERVE_INVENTORY.toString()) {
-      const check = await this.inventoryBroker.getReservationStatus(orderId);
+      const check = await this.inventoryClient.getReservationStatus(orderId);
       return { happened: check.exists, reservationId: check.reservationId };
     }
     if (step === ESagaStep.CHARGE_PAYMENT.toString()) {
-      const check = await this.paymentBroker.getPaymentStatus(orderId);
+      const check = await this.paymentClient.getPaymentStatus(orderId);
       return { happened: false, transactionId: check.transactionId };
     }
     return { happened: false }; // false = step chưa từng xảy ra, không cần compensate step này
@@ -219,10 +216,10 @@ export class PlaceOrderSaga {
         saga.currentStep === ESagaStep.CHARGE_PAYMENT.toString() &&
         saga.transactionId
       ) {
-        await this.paymentBroker.paymentRefund(saga.id);
+        await this.paymentClient.paymentRefund(saga.id);
       }
       if (saga.reservationId) {
-        await this.inventoryBroker.release(saga.reservationId);
+        await this.inventoryClient.release(saga.reservationId);
       }
       await this.redis.del(`saga:timeout:${saga.id}`);
 

@@ -5,7 +5,8 @@ import {
   IsString,
   MinLength,
 } from 'class-validator';
-import { EUserRole, IUser } from '../interfaces/user';
+import { EUserRole } from '../enums/user-role.enum';
+import { IUser } from '../interfaces/user.interface';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateUserDto implements IUser {

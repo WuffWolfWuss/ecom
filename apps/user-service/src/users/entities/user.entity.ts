@@ -5,7 +5,8 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { EUserRole, IUser } from '../interfaces/user';
+import { EUserRole } from '../enums/user-role.enum';
+import { IUser } from '../interfaces/user.interface';
 import { BaseEntity } from '@app/database';
 
 @Entity('users')

@@ -4,11 +4,11 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { ProductsRepository } from './products.repository';
+import { ProductsRepository } from './repositories/products.repository';
 import { ElasticsearchService } from '@nestjs/elasticsearch';
 import { CreateProductDto } from './dto/create-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
-import { BrokerService } from '@app/broker';
+import { ProductsPublisher } from './messaging/publishers/products.publisher';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { IProduct } from './interfaces/product.interface';
 
@@ -19,7 +19,7 @@ export class ProductsService {
   constructor(
     private readonly repo: ProductsRepository,
     private readonly elastic: ElasticsearchService,
-    private readonly broker: BrokerService,
+    private readonly publisher: ProductsPublisher,
   ) {}
 
   async create(dto: CreateProductDto, userId: string) {
@@ -29,10 +29,7 @@ export class ProductsService {
     await this.indexToElastic(product);
 
     // Publish event để Inventory service tạo stock record
-    await this.broker.publish({
-      topic: 'product.created',
-      payload: { productId: product._id.toString(), name: product.name },
-    });
+    await this.publisher.productCreated(product._id.toString(), product.name);
 
     return product;
   }

@@ -5,7 +5,7 @@ import { Order } from '../entities/order.entity';
 import { EOrderStatus } from '../enums/order-status.enum';
 import { OrderItem } from '../entities/order-item.entity';
 import { QueryOrderDto } from '../dto/query-order.dto';
-import { IProductValidateResult } from '../interfaces/order-item.interface';
+import { IProductValidateResult } from '@app/contracts';
 
 @Injectable()
 export class OrdersRepository {

@@ -19,8 +19,8 @@ import {
   Producer,
   ProducerRecord,
 } from 'kafkajs';
-import { KAFKA_HANDLER_METADATA_KEY, KafkaSubscription } from '../../constant';
-import { IEventPayload, IKafkaBroker } from '../../constant/interfaces';
+import { KAFKA_HANDLER_METADATA_KEY, KafkaSubscription } from '../constants';
+import { IEventPayload, IKafkaBroker } from '../constants/interfaces';
 
 @Injectable()
 export class KafkaBrokerService
@@ -148,7 +148,7 @@ export class KafkaBrokerService
 
     await this.consumer.subscribe({
       topics: this.pendingTopics, // subscribe tất cả một lần
-      fromBeginning: false, // chỉ đọc event mới — xem lý do bên dưới
+      fromBeginning: false,
     });
 
     await this.consumer.run({

@@ -21,7 +21,7 @@ export class BrokerService {
     return this.nats.send<T>(msg.topic, msg.payload);
   }
 
-  // Setup cả Kafka + NATS subscriptions từ decorator
+  // Setup Kafka + NATS subscriptions từ decorator
   async subscribe(instances: object[]) {
     for (const instance of instances) {
       await this.kafka.setupSubscriptions(instance);

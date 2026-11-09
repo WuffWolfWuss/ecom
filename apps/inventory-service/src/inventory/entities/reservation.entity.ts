@@ -1,6 +1,6 @@
 import { BaseEntity } from '@app/database';
 import { Entity, Column } from 'typeorm';
-import { ReservationStatus } from '../interfaces/inventory';
+import { EReservationStatus } from '../enums/reservation-status.enum';
 
 @Entity('reservations')
 export class Reservation extends BaseEntity {
@@ -9,10 +9,10 @@ export class Reservation extends BaseEntity {
 
   @Column({
     type: 'enum',
-    enum: ReservationStatus,
-    default: ReservationStatus.RESERVED,
+    enum: EReservationStatus,
+    default: EReservationStatus.RESERVED,
   })
-  status: ReservationStatus;
+  status: EReservationStatus;
 
   @Column({ type: 'jsonb' })
   items: { productId: string; qty: number }[];
