@@ -6,9 +6,11 @@ import {
 } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
+import { AuthRedisModule } from '@app/redis';
 import { AuthMiddleware } from './middleware/auth.middleware';
-import { OptionalAuthMiddleware } from './middleware/optional-auth.middleware';
+import { AuthRateLimitMiddleware } from './middleware/auth-rate-limit.middleware';
 import { ProxyModule } from './proxy/proxy.module';
+import { ProxyController } from './proxy/proxy.controller';
 
 @Module({
   imports: [
@@ -19,28 +21,23 @@ import { ProxyModule } from './proxy/proxy.module';
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get('JWT_SECRET'),
+        secret: config.getOrThrow<string>('JWT_SECRET'),
+        verifyOptions: { algorithms: ['HS256'] },
       }),
     }),
+    AuthRedisModule,
     ProxyModule,
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
-      .apply(OptionalAuthMiddleware)
+      .apply(AuthRateLimitMiddleware)
       .forRoutes(
-        { path: 'users/*path', method: RequestMethod.ALL },
-        { path: 'orders', method: RequestMethod.ALL },
-        { path: 'orders/*path', method: RequestMethod.ALL },
-        { path: 'payments', method: RequestMethod.ALL },
-        { path: 'payments/*path', method: RequestMethod.ALL },
-        { path: 'inventory', method: RequestMethod.ALL },
-        { path: 'inventory/*path', method: RequestMethod.ALL },
-        { path: 'products', method: RequestMethod.ALL },
-        { path: 'products/*path', method: RequestMethod.ALL },
-        { path: 'categories', method: RequestMethod.ALL },
-        { path: 'categories/*path', method: RequestMethod.ALL },
+        { path: 'auth', method: RequestMethod.ALL },
+        { path: 'auth/*path', method: RequestMethod.ALL },
       );
+    // Every proxied route, auth/* included (logout, sessions need the user).
+    consumer.apply(AuthMiddleware).forRoutes(ProxyController);
   }
 }

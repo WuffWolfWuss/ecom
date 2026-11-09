@@ -1,11 +1,19 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
 import { SwaggerService } from './proxy/swagger';
 import { SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Behind a load balancer / reverse proxy, set TRUST_PROXY (e.g. 1) so
+  // req.ip is the real client IP — rate limits and login locks depend on it.
+  if (process.env.TRUST_PROXY) {
+    const v = process.env.TRUST_PROXY;
+    app.set('trust proxy', /^\d+$/.test(v) ? Number(v) : v);
+  }
   const logger = new Logger('Gateway');
 
   app.enableCors();

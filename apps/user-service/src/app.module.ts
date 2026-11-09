@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { AdminModule } from './admin/admin.module';
 import { User } from './users/entities/user.entity';
 import { BrokerModule } from '@app/broker';
 import { typeOrmConfigFactory } from '@app/database';
@@ -22,6 +23,7 @@ import { HealthModule } from '@app/common/health/health.module';
     HealthModule.forRoot({ database: 'postgres' }),
     UsersModule,
     AuthModule,
+    AdminModule,
     BrokerModule,
   ],
 })

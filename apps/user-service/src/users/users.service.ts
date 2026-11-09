@@ -1,43 +1,61 @@
 import {
-  Injectable,
   ConflictException,
+  Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
-import { CreateUserDto } from './dto/user.dto';
+import { EUserRole } from './enums/user-role.enum';
+import { ICreateUser, IPublicUser } from './interfaces/user.interface';
+import { UsersRepository } from './repositories/users.repository';
 import { UsersPublisher } from './messaging/publishers/users.publisher';
+
+export const BCRYPT_ROUNDS = 10;
 
 @Injectable()
 export class UsersService {
   constructor(
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>, //TypeORM basic repository
+    private readonly repo: UsersRepository,
     private readonly publisher: UsersPublisher,
   ) {}
 
-  async create(dto: CreateUserDto): Promise<User> {
-    const exists = await this.userRepo.findOne({ where: { email: dto.email } });
+  async create(input: ICreateUser): Promise<User> {
+    const exists = await this.repo.findByEmail(input.email);
     if (exists) throw new ConflictException('Email already in use');
 
-    const hashed = await bcrypt.hash(dto.password, 10);
-    const user = this.userRepo.create({ ...dto, password: hashed });
-    const result = await this.userRepo.save(user);
+    const hashed = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+    const user = await this.repo.create({ ...input, password: hashed });
 
     await this.publisher.userRegistered(user.id, user.email);
 
-    return result;
+    return user;
   }
 
-  async findByEmail(email: string): Promise<User | null> {
-    return this.userRepo.findOne({ where: { email } });
+  findByEmailWithPassword(email: string): Promise<User | null> {
+    return this.repo.findByEmailWithPassword(email);
   }
 
   async findById(id: string): Promise<User> {
-    const user = await this.userRepo.findOne({ where: { id } });
+    const user = await this.repo.findById(id);
     if (!user) throw new NotFoundException('User not found');
     return user;
+  }
+
+  existsByRole(role: EUserRole): Promise<boolean> {
+    return this.repo.existsByRole(role);
+  }
+
+  setActive(id: string, isActive: boolean): Promise<void> {
+    return this.repo.setActive(id, isActive);
+  }
+
+  incrementTokenVersion(id: string): Promise<number> {
+    return this.repo.incrementTokenVersion(id);
+  }
+
+  toPublic(user: User): IPublicUser {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password, tokenVersion, ...rest } = user;
+    return rest;
   }
 }

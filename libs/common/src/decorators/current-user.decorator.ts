@@ -1,11 +1,16 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import type { IRequestUser } from '@app/contracts';
 
+/**
+ * `@CurrentUser()` → user id (default), `@CurrentUser('sid')` → session id,
+ * `@CurrentUser('role')` → role. Set by InternalAuthGuard from gateway headers.
+ */
 export const CurrentUser = createParamDecorator(
-  (_: unknown, ctx: ExecutionContext): string => {
+  (field: keyof IRequestUser | undefined, ctx: ExecutionContext) => {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const request = ctx.switchToHttp().getRequest();
-    // Đọc từ header do Gateway forward xuống
     // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-    return request.user?.id as string;
+    const user = request.user as IRequestUser | undefined;
+    return user?.[field ?? 'id'];
   },
 );

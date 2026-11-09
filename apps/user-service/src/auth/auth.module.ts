@@ -1,28 +1,35 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
+import { AuthRedisModule } from '@app/redis';
+import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { UsersModule } from '../users/users.module';
-import { PassportModule } from '@nestjs/passport';
-import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { JwtStrategy } from './strategies/jwt.config';
 import { UsersClient } from './messaging/clients/users.client';
+import { LoginAttemptService } from './services/login-attempt.service';
+import { SessionService } from './services/session.service';
+import { TokenService } from './services/token.service';
 
 @Module({
   imports: [
-    ConfigModule,
-    UsersModule, // ← import UsersModule để dùng UsersService
-    PassportModule,
+    UsersModule,
+    AuthRedisModule,
     JwtModule.registerAsync({
-      imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get('JWT_SECRET'),
-        signOptions: { expiresIn: config.get('JWT_EXPIRES_IN', '7d') },
+        secret: config.getOrThrow<string>('JWT_SECRET'),
+        signOptions: { algorithm: 'HS256' },
       }),
     }),
   ],
-  providers: [AuthService, JwtStrategy, UsersClient],
+  providers: [
+    AuthService,
+    TokenService,
+    SessionService,
+    LoginAttemptService,
+    UsersClient,
+  ],
   controllers: [AuthController],
+  exports: [SessionService],
 })
 export class AuthModule {}

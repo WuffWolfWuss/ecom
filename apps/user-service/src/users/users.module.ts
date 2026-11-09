@@ -5,10 +5,11 @@ import { User } from './entities/user.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersHandler } from './messaging/handlers/users.handler';
 import { UsersPublisher } from './messaging/publishers/users.publisher';
+import { UsersRepository } from './repositories/users.repository';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User])],
-  providers: [UsersService, UsersHandler, UsersPublisher],
+  providers: [UsersService, UsersRepository, UsersHandler, UsersPublisher],
   controllers: [UsersController],
   exports: [UsersService],
 })
