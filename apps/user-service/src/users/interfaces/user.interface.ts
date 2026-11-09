@@ -8,6 +8,7 @@ export interface IUser {
   lastName: string;
   role: EUserRole;
   isActive: boolean;
+  tokenVersion: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -20,3 +21,6 @@ export interface ICreateUser {
   lastName: string;
   role: EUserRole;
 }
+
+/** User as returned by the API — never includes the password hash. */
+export type IPublicUser = Omit<IUser, 'password' | 'tokenVersion'>;
