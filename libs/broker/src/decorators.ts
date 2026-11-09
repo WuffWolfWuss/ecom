@@ -3,7 +3,7 @@
 import {
   KAFKA_HANDLER_METADATA_KEY,
   NATS_HANDLER_METADATA_KEY,
-} from '../constant';
+} from './constants';
 
 export function BrokerEvent(topic: string) {
   return (target: any, propertyKey: string, descriptor: PropertyDescriptor) => {

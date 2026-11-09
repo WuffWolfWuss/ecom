@@ -10,7 +10,7 @@ import {
   NatsConnection,
   Subscription,
 } from '@nats-io/transport-node';
-import { NATS_HANDLER_METADATA_KEY, NatsSubscription } from '../../constant';
+import { NATS_HANDLER_METADATA_KEY, NatsSubscription } from '../constants';
 import {
   AmbiguousRpcException,
   BusinessRpcException,

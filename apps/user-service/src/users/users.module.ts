@@ -3,15 +3,13 @@ import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BrokerService } from '@app/broker';
-import { UserEventHandler } from './event-handlers/user.events';
+import { UsersHandler } from './messaging/handlers/users.handler';
+import { UsersPublisher } from './messaging/publishers/users.publisher';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([User]),
-  ],
-  providers: [UsersService, UserEventHandler],
+  imports: [TypeOrmModule.forFeature([User])],
+  providers: [UsersService, UsersHandler, UsersPublisher],
   controllers: [UsersController],
-  exports: [UsersService], 
+  exports: [UsersService],
 })
 export class UsersModule {}

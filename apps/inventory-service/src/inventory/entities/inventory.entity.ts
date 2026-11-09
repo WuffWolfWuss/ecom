@@ -1,6 +1,6 @@
 // inventory/entities/inventory.entity.ts
 import { Entity, Column } from 'typeorm';
-import { IInventory } from '../interfaces/inventory';
+import { IInventory } from '../interfaces/inventory.interface';
 import { BaseEntity } from '@app/database';
 
 @Entity('inventory')

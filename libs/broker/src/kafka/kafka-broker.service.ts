@@ -19,8 +19,8 @@ import {
   Producer,
   ProducerRecord,
 } from 'kafkajs';
-import { KAFKA_HANDLER_METADATA_KEY, KafkaSubscription } from '../../constant';
-import { IEventPayload, IKafkaBroker } from '../../constant/interfaces';
+import { KAFKA_HANDLER_METADATA_KEY, KafkaSubscription } from '../constants';
+import { IEventPayload, IKafkaBroker } from '../constants/interfaces';
 
 @Injectable()
 export class KafkaBrokerService

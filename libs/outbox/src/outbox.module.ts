@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { OutboxService } from './outbox.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { OutboxEvent } from '@app/database';
+import { OutboxEvent } from './outbox-event.entity';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BrokerModule } from '@app/broker';
 import { OutboxDispatcherService } from './outbox-dispatcher.service';

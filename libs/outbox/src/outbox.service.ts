@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
-import { OutboxEvent, OutboxStatus } from '@app/database';
+import { OutboxEvent, OutboxStatus } from './outbox-event.entity';
 
 @Injectable()
 export class OutboxService {

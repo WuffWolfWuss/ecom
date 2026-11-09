@@ -8,7 +8,7 @@ import { DataSource, Repository } from 'typeorm';
 import { Inventory } from '../entities/inventory.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Reservation } from '../entities/reservation.entity';
-import { ReservationStatus } from '../interfaces/inventory';
+import { EReservationStatus } from '../enums/reservation-status.enum';
 
 @Injectable()
 export class InventoryRepository {
@@ -79,7 +79,7 @@ export class InventoryRepository {
       const reservation = manager.create(Reservation, {
         orderId,
         items,
-        status: ReservationStatus.RESERVED,
+        status: EReservationStatus.RESERVED,
       });
       await manager.save(reservation);
 
@@ -103,7 +103,7 @@ export class InventoryRepository {
         return;
       }
 
-      if (reservation.status !== ReservationStatus.RESERVED) return;
+      if (reservation.status !== EReservationStatus.RESERVED) return;
 
       for (const item of reservation.items) {
         await manager.decrement(
@@ -120,7 +120,7 @@ export class InventoryRepository {
         );
       }
 
-      reservation.status = ReservationStatus.CONFIRMED;
+      reservation.status = EReservationStatus.CONFIRMED;
       await manager.save(reservation);
 
       return reservation.items;

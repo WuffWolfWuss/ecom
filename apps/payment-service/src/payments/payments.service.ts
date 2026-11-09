@@ -4,10 +4,15 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
-import { PaymentsRepository } from './payments.repository';
+import { PaymentsRepository } from './repositories/payments.repository';
 import { ChargeDto } from './dto/charge.dto';
-import { EPaymentStatus } from './constants/enum';
+import { EPaymentStatus } from './enums/payment.enum';
 import { OutboxService } from '@app/outbox';
+import {
+  IPaymentRefundedEvent,
+  IPaymentSucceededEvent,
+  PAYMENT_TOPICS,
+} from '@app/contracts';
 import { DataSource } from 'typeorm';
 
 @Injectable()
@@ -46,12 +51,13 @@ export class PaymentsService {
           manager,
         );
 
-        await this.outbox.addEvent(manager, 'payment.succeeded', {
+        const event: IPaymentSucceededEvent = {
           id: payment.orderId,
           orderId: payment.orderId,
           userId: payment.userId,
           transactionId,
-        });
+        };
+        await this.outbox.addEvent(manager, PAYMENT_TOPICS.SUCCEEDED, event);
       });
 
       return { success: true, transactionId };
@@ -94,11 +100,12 @@ export class PaymentsService {
           manager,
         );
 
-        await this.outbox.addEvent(manager, 'payment.refunded', {
+        const event: IPaymentRefundedEvent = {
           id: orderId,
           orderId,
           userId: payment.userId,
-        });
+        };
+        await this.outbox.addEvent(manager, PAYMENT_TOPICS.REFUNDED, event);
       });
 
       return { success: true, reason: 'REFUNDED' };

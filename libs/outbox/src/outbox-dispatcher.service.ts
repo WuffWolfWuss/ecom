@@ -3,7 +3,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { DataSource } from 'typeorm';
-import { OutboxEvent, OutboxStatus } from '@app/database';
+import { OutboxEvent, OutboxStatus } from './outbox-event.entity';
 import { BrokerService } from '@app/broker';
 
 const MAX_RETRY = 5;

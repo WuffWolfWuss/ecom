@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Repository } from 'typeorm';
-import { SagaState, SagaStatus } from '@app/database';
+import { SagaState, SagaStatus } from '../entities/saga-state.entity';
 import { ESagaStep } from '../enums/saga-steps.enum';
 import { PlaceOrderSaga } from './place-order.saga';
 import { IVerifySagaResult } from '../interfaces/order.interface';

@@ -7,11 +7,3 @@ export interface IOrderItem {
   qty: number;
   subtotal: number;
 }
-
-export interface IProductValidateResult {
-  productId: string;
-  name: string;
-  price: number;
-  qty: number;
-  subtotal: number;
-}

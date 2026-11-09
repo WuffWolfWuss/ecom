@@ -8,14 +8,14 @@ import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from './entities/user.entity';
 import { CreateUserDto } from './dto/user.dto';
-import { BrokerService } from '@app/broker';
+import { UsersPublisher } from './messaging/publishers/users.publisher';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly userRepo: Repository<User>, //TypeORM basic repository
-    private readonly broker: BrokerService,
+    private readonly publisher: UsersPublisher,
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
@@ -26,10 +26,7 @@ export class UsersService {
     const user = this.userRepo.create({ ...dto, password: hashed });
     const result = await this.userRepo.save(user);
 
-    await this.broker.publish({
-      topic: 'user.registered',
-      payload: { id: user.id, email: user.email },
-    });
+    await this.publisher.userRegistered(user.id, user.email);
 
     return result;
   }

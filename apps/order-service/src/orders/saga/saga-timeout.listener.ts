@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import Redis from 'ioredis';
 import { REDIS_SUBSCRIBER } from '@app/redis';
-import { SagaState, SagaStatus } from '@app/database';
+import { SagaState, SagaStatus } from '../entities/saga-state.entity';
 import { ESagaStep } from '../enums/saga-steps.enum';
 import { PlaceOrderSaga } from './place-order.saga';
 
